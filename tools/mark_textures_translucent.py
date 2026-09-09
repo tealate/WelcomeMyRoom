@@ -1,8 +1,9 @@
-"""Mark PNG textures as translucent with one visually negligible alpha change.
+"""Mark selected PNG textures as translucent with a negligible alpha change.
 
-For every PNG below the target directory, this script changes exactly one pixel
-whose alpha is 255 to alpha 254. Pixels with any other alpha value, including
-fully transparent pixels (alpha 0), are never selected or changed.
+Each target can be a PNG, a directory, or a texture ID such as ``block/dirt``.
+The script changes exactly one pixel whose alpha is 255 to alpha 254. Pixels
+with any other alpha value, including fully transparent pixels (alpha 0), are
+never selected or changed.
 """
 
 from __future__ import annotations
@@ -13,6 +14,29 @@ from pathlib import Path
 import tempfile
 
 from PIL import Image
+
+TEXTURE_ROOT = Path("assets/minecraft/textures")
+
+
+def resolve_target(value: str) -> list[Path]:
+    direct = Path(value)
+    if direct.is_file():
+        if direct.suffix.lower() != ".png":
+            raise ValueError(f"target is not a PNG: {value}")
+        return [direct]
+    if direct.is_dir():
+        return sorted(direct.rglob("*.png"))
+
+    texture_id = value.removeprefix("minecraft:").replace("\\", "/")
+    shorthand = TEXTURE_ROOT / texture_id
+    if shorthand.suffix.lower() != ".png":
+        shorthand = shorthand.with_suffix(".png")
+
+    root = TEXTURE_ROOT.resolve()
+    resolved = shorthand.resolve()
+    if root not in resolved.parents or not resolved.is_file():
+        raise FileNotFoundError(f"texture not found: {value}")
+    return [shorthand]
 
 
 def process_png(path: Path, dry_run: bool) -> str:
@@ -78,16 +102,33 @@ def process_png(path: Path, dry_run: bool) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("target", type=Path, help="Directory containing PNG textures")
+    parser = argparse.ArgumentParser(
+        description="Change one opaque pixel to alpha 254 in selected textures."
+    )
+    parser.add_argument(
+        "targets",
+        nargs="+",
+        help="PNG path, directory, or texture ID (for example: block/dirt)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for target in args.targets:
+        for path in resolve_target(target):
+            resolved = path.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                paths.append(path)
+
     counts: dict[str, int] = {}
-    for path in sorted(args.target.rglob("*.png")):
+    for path in paths:
         result = process_png(path, args.dry_run)
         counts[result] = counts.get(result, 0) + 1
+        print(f"{result}: {path.as_posix()}")
 
+    print("--- summary ---")
     for result, count in sorted(counts.items()):
         print(f"{result}: {count}")
 
