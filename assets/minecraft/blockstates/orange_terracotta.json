@@ -1,7 +1,7 @@
 {
   "variants": {
     "": {
-      "model": "minecraft:block/orange_terracotta"
+      "model": "editor:block/oak_maskable"
     }
   }
 }

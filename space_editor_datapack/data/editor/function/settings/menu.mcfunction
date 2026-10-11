@@ -1,0 +1,4 @@
+tellraw @s {"text": "[Space Editor] 補正はMask/TPの生成時に保存されます。expandは両端それぞれの増分、負数で縮小。", "color": "aqua"}
+tellraw @s [{"text": "offset: /function editor:settings/offset {x:0,y:0,z:-0.01}", "color": "aqua", "click_event": {"action": "suggest_command", "command": "/function editor:settings/offset {x:0,y:0,z:-0.01}"}}]
+tellraw @s [{"text": "expand: /function editor:settings/expand {x:-0.1,y:-0.1,z:-0.1}", "color": "aqua", "click_event": {"action": "suggest_command", "command": "/function editor:settings/expand {x:-0.1,y:-0.1,z:-0.1}"}}]
+tellraw @s [{"text": " [補正リセット] ", "color": "aqua", "click_event": {"action": "run_command", "command": "/function editor:settings/zero"}, "hover_event": {"action": "show_text", "value": "クリックして実行"}}, {"text": " [メニュー] ", "color": "aqua", "click_event": {"action": "run_command", "command": "/function editor:menu"}, "hover_event": {"action": "show_text", "value": "クリックして実行"}}]

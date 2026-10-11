@@ -1,0 +1,13 @@
+{
+  "pack": {
+    "description": "Space Editor 1.0 | Java 26.1",
+    "min_format": [
+      101,
+      1
+    ],
+    "max_format": [
+      101,
+      1
+    ]
+  }
+}

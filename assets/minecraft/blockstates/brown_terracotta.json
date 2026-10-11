@@ -1,7 +1,7 @@
 {
   "variants": {
     "": {
-      "model": "minecraft:block/brown_terracotta"
+      "model": "editor:block/dirt_maskable"
     }
   }
 }

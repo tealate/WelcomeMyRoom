@@ -8,6 +8,27 @@
 - Preserve unrelated working-tree changes. Never revert, replace, or delete them.
 - Do not commit, push, or broadly rewrite assets unless the user explicitly asks.
 
+## Live editing workflow
+
+- The user-provided working folders are intended for direct use by Minecraft,
+  with resource changes reflected through `F3+T` and datapack changes through
+  `/reload`. Default to editing the active files in place.
+- Deliver working changes in the existing live folder layout, not separate
+  distribution folders that require the user to copy or install them manually.
+- Check the actual resource-pack and datapack roots when choosing output paths.
+  Do not assume that newly nested pack folders are automatically loaded, or
+  describe a resource-pack folder as the world root without verifying it.
+- Do not create ZIP archives or add packaging/install steps unless the user
+  explicitly requests distribution or packaging.
+- Existing ZIPs do not need to be deleted; leave them unless asked otherwise.
+- Completion instructions should identify the applicable refresh action:
+  `F3+T`, `/reload`, or both. Mention a restart only when the change requires it.
+- Current live mapping: this checkout's root `assets/` is the active `testpack`;
+  `space_editor_datapack/` is referenced by a directory junction at
+  `C:\Users\yoshida_kaito\AppData\Roaming\.minecraft\saves\新規ワールド (2)\datapacks\space_editor`.
+  Edit these sources directly. `tools/build_space_editor.py` also synchronizes
+  the editor's declared rendering assets into root `assets/`.
+
 ## Texture render-pass behavior
 
 - Minecraft 26.1 chooses a block quad's render pass from the assigned sprite:

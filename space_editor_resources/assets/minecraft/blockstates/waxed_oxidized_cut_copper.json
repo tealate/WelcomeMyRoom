@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "editor:block/mask_body"
+    }
+  }
+}
