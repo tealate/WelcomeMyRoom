@@ -1,4 +1,35 @@
-# Space Editor — はじめに
+# Space Editor — 第1段階（新仕様）
+
+現在ロードされる実装は、Notion「01｜エディタ基盤・範囲選択・プレビュー」に合わせた
+Region編集専用版です。旧版のBlock / Mask / TP機能と保存データは削除していませんが、
+この段階ではロードも実行もしません。
+
+## まず試す
+
+1. Minecraftで `/reload`、続けて `F3+T`。
+2. `/function space_editor:start`（旧コマンド `/function editor:start` も可）。
+3. **範囲選択棒**でブロックを2回右クリック。1回目がA、2回目がBです。
+4. 水色の枠＋斜線が出たら、別の2点をクリックしてRegionを追加できます。
+5. **全体サイズ変更棒**で枠を右クリックすると全方向へ拡大、Shift＋右クリックで縮小。
+6. **面伸縮棒**は見ている1面だけを動かします。Shiftで逆方向です。
+7. **Region削除棒**で見ているRegionを削除します。
+8. 枠中央の文字でID・現在位置・サイズを確認できます。
+9. `/function space_editor:play` で補助枠を非表示、`/function space_editor:start` で復帰。
+
+増減量は `/function space_editor:set_step {amount:0.1}`（0.1〜16、0.1単位）、一時的なA選択の解除は
+`/function space_editor:selection/clear`、保存Regionからの表示復帰は
+`/function space_editor:resume`、状態確認は `/function space_editor:status` です。
+
+Regionの正本は `storage space_editor:document` にあり、`schemaVersion:1`、一意な
+`id` / `idText`、`dimension`、整数配列 `min` / `maxExclusive`、`role`、表示状態を保存します。
+クリック途中のSelectionは `storage space_editor:runtime selection` に分離しています。
+
+この段階ではBlock配置、Mask本体、TP、Portal、Undo/Redo、JSON書き出しは実装対象外です。
+以下は保存してある旧版の資料です。
+
+---
+
+# Space Editor — 旧版資料
 
 Minecraft Java Edition **26.1** 用、1人編集の空間制作ツールです。
 選択棒で2点を選び、チャットのボタンから建材・マスク・テレポート範囲を配置します。

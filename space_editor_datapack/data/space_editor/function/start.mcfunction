@@ -1,0 +1,10 @@
+execute unless entity @s[type=minecraft:player] run return 0
+tag @a remove space_editor.editing
+tag @s add space_editor.editing
+data modify storage space_editor:document editMode set value 1b
+execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"region"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"region"}},minecraft:custom_name={text:"範囲選択棒",color:"aqua",italic:false},minecraft:lore=[{text:"右クリック1回目=A / 2回目=B",italic:false}] ]
+execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"resize_all"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"resize_all"}},minecraft:custom_name={text:"全体サイズ変更棒",color:"yellow",italic:false},minecraft:lore=[{text:"右クリック=拡大 / Shift+右クリック=縮小",italic:false}] ]
+execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"resize_face"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"resize_face"}},minecraft:custom_name={text:"面伸縮棒",color:"gold",italic:false},minecraft:lore=[{text:"見ている1面を移動 / Shiftで逆方向",italic:false}] ]
+execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"delete"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"delete"}},minecraft:custom_name={text:"Region削除棒",color:"red",italic:false},minecraft:lore=[{text:"見ているRegionを右クリックで削除",italic:false}] ]
+function space_editor:preview/resync
+tellraw @s {"text": "[Space Editor] 編集モード。範囲棒を2回右クリックしてRegionを作成します。", "color": "aqua"}
