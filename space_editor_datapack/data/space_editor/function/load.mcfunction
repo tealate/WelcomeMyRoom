@@ -17,4 +17,10 @@ execute in minecraft:overworld run kill @e[tag=space_editor.preview]
 execute in minecraft:the_nether run kill @e[tag=space_editor.preview]
 execute in minecraft:the_end run kill @e[tag=space_editor.preview]
 execute if entity @a[tag=space_editor.editing] run function space_editor:preview/resync
+execute unless data storage space_editor:document templates run data modify storage space_editor:document templates set value []
+execute unless data storage space_editor:document nextTemplateId run data modify storage space_editor:document nextTemplateId set value 1
+execute unless data storage space_editor:document nextActionId run data modify storage space_editor:document nextActionId set value 1
+execute unless data storage space_editor:document archive run data modify storage space_editor:document archive set value {dimension:"minecraft:overworld",baseX:20000000,baseY:-63,baseZ:20000000,stride:64}
+execute if data storage space_editor:document job{state:"running"} run tellraw @a {"text": "[Space Editor] 保存中のCopy/Paste Jobを再開します。", "color": "yellow"}
 tellraw @a {"text": "[Space Editor] 第1段階を読み込みました。/function space_editor:start", "color": "aqua"}
+tellraw @a {"text": "[Space Editor] 第2段階: Fill / Copy / Pasteを読み込みました。", "color": "aqua"}

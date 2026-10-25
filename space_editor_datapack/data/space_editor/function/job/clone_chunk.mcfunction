@@ -1,0 +1,1 @@
+$return run clone from $(sourceDimension) $(chunkSourceX1) $(chunkSourceY1) $(chunkSourceZ1) $(chunkSourceX2) $(chunkSourceY2) $(chunkSourceZ2) to $(targetDimension) $(chunkTargetX) $(chunkTargetY) $(chunkTargetZ) strict replace force

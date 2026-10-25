@@ -1,12 +1,12 @@
-# Space Editor — 第1段階（新仕様）
+# Space Editor — 第2段階（新仕様）
 
-現在ロードされる実装は、Notion「01｜エディタ基盤・範囲選択・プレビュー」に合わせた
-Region編集専用版です。旧版のBlock / Mask / TP機能と保存データは削除していませんが、
-この段階ではロードも実行もしません。
+現在ロードされる実装は、01のRegion編集基盤にNotion
+「02｜ブロック配置・コピー・ペースト・保存」を追加した版です。旧版のBlock / Mask / TP機能と
+保存データは削除していませんが、この段階ではロードも実行もしません。
 
 ## まず試す
 
-1. Minecraftで `/reload`、続けて `F3+T`。
+1. Minecraftで `/reload`。今回は見た目の追加がないため、通常は`F3+T`不要です。
 2. `/function space_editor:start`（旧コマンド `/function editor:start` も可）。
 3. **範囲選択棒**でブロックを2回右クリック。1回目がA、2回目がBです。
 4. 水色の枠＋斜線が出たら、別の2点をクリックしてRegionを追加できます。
@@ -16,6 +16,24 @@ Region編集専用版です。旧版のBlock / Mask / TP機能と保存データ
 8. 枠中央の文字でID・現在位置・サイズを確認できます。
 9. `/function space_editor:play` で補助枠を非表示、`/function space_editor:start` で復帰。
 
+## Fill / Copy / Paste
+
+- **Fill**：Fill棒をメインハンド、素材ブロックをオフハンドに持ち、対象Regionを見て右クリック。
+  成功時だけ、そのFill専用Regionとプレビューを削除します。従来のコマンド操作も残しています。
+- **Copy**：コピー棒でRegionを見て右クリック。完了すると`Template #ID`アイテムを受け取ります。
+- **Paste**：ペースト棒をメインハンド、Templateアイテムをオフハンドに持ってブロックを右クリック。
+  1回目でクリックしたブロック座標を始点とする範囲を表示し、2回目の右クリックで確定します。
+  プレビュー中のShift＋右クリックでキャンセルできます。現段階は0度・上下反転なし・airを含む貼付です。
+- Templateアイテムは参照キーだけを保持します。紛失時は
+  `/function space_editor:template/reissue {id:1}`で再発行できます。
+- Copy/Pasteは現在の`minecraft:max_block_modifications`に合わせてX方向へ分割し、1区画ずつ処理します。
+  進捗は`storage space_editor:document job`へ保存され、`/reload`後も継続します。
+- Job操作：`/function space_editor:job/pause`、`resume`、`retry`、`cancel`。
+
+ブロック操作は整数のブロック境界に揃ったRegionだけ受け付けます。01の0.1刻み伸縮で境界が小数に
+なったRegionは、誤った丸めを避けるためFill/Copyを拒否します。Template実体は再起動不要の方式として、
+Overworldの予約領域（基点`20000000 -63 20000000`、64ブロック間隔）へ保存します。
+
 増減量は `/function space_editor:set_step {amount:0.1}`（0.1〜16、0.1単位）、一時的なA選択の解除は
 `/function space_editor:selection/clear`、保存Regionからの表示復帰は
 `/function space_editor:resume`、状態確認は `/function space_editor:status` です。
@@ -24,7 +42,7 @@ Regionの正本は `storage space_editor:document` にあり、`schemaVersion:1`
 `id` / `idText`、`dimension`、整数配列 `min` / `maxExclusive`、`role`、表示状態を保存します。
 クリック途中のSelectionは `storage space_editor:runtime selection` に分離しています。
 
-この段階ではBlock配置、Mask本体、TP、Portal、Undo/Redo、JSON書き出しは実装対象外です。
+この段階では回転・上下反転、Mask本体、TP、Portal、Undo/Redo、JSON書き出しは実装対象外です。
 以下は保存してある旧版の資料です。
 
 ---
