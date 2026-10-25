@@ -16,6 +16,9 @@ execute unless data storage space_editor:document settings{boundsVersion:3} run 
 execute in minecraft:overworld run kill @e[tag=space_editor.preview]
 execute in minecraft:the_nether run kill @e[tag=space_editor.preview]
 execute in minecraft:the_end run kill @e[tag=space_editor.preview]
+execute in minecraft:overworld run kill @e[tag=space_editor.selection_capture]
+execute in minecraft:the_nether run kill @e[tag=space_editor.selection_capture]
+execute in minecraft:the_end run kill @e[tag=space_editor.selection_capture]
 execute if entity @a[tag=space_editor.editing] run function space_editor:preview/resync
 execute unless data storage space_editor:document templates run data modify storage space_editor:document templates set value []
 execute unless data storage space_editor:document nextTemplateId run data modify storage space_editor:document nextTemplateId set value 1

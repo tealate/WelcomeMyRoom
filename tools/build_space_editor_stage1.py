@@ -60,6 +60,7 @@ def main() -> None:
         "execute unless data storage space_editor:document settings.stepMilli run function space_editor:internal/migrate_step",
         "execute unless data storage space_editor:document settings{boundsVersion:3} run function space_editor:internal/migrate_bounds",
         *dimensions("kill @e[tag=space_editor.preview]"),
+        *dimensions("kill @e[tag=space_editor.selection_capture]"),
         "execute if entity @a[tag=space_editor.editing] run function space_editor:preview/resync",
         message("第1段階を読み込みました。/function space_editor:start", target="@a"),
     ])
@@ -123,6 +124,8 @@ def main() -> None:
     fn("tick", [
         "scoreboard players add @a se.cd 0",
         "scoreboard players remove @a[scores={se.cd=1..}] se.cd 1",
+        *dimensions("kill @e[tag=space_editor.selection_candidate]"),
+        "execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}}] run function space_editor:selection/track",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}}] run function space_editor:input/region",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_all\"}}] run function space_editor:input/resize_all",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_face\"}}] run function space_editor:input/resize_face",
@@ -178,27 +181,44 @@ def main() -> None:
         'tellraw @s [{text:"Selected: ",color:"yellow"},{nbt:"selectedId",storage:"space_editor:document"},{text:" / step="},{nbt:"settings.step",storage:"space_editor:document"}]',
     ])
 
+    # While the Region wand is held, track a block hit up to three blocks away.
+    # If nothing is hit, the block cell containing the point exactly three
+    # blocks along the view ray becomes the candidate.  Clicking commits the
+    # already-previewed candidate as A or B.
+    fn("selection/track", [
+        "data remove storage space_editor:runtime hover",
+        "scoreboard players set #selection_ray se.v 0",
+        "execute anchored eyes positioned ^ ^ ^ run function space_editor:internal/ray_selection",
+    ])
+    fn("internal/ray_selection", [
+        "execute unless block ~ ~ ~ #space_editor:ray_pass run return run execute align xyz run function space_editor:selection/hover_capture",
+        "execute if score #selection_ray se.v matches 30 run return run execute align xyz run function space_editor:selection/hover_capture",
+        "scoreboard players add #selection_ray se.v 1",
+        "execute positioned ^ ^ ^0.1 run return run function space_editor:internal/ray_selection",
+    ])
+    fn("selection/hover_capture", [
+        "data modify storage space_editor:runtime hover set value {dimension:\"\",pos:[I;0,0,0],x:0,y:0,z:0}",
+        'execute if dimension minecraft:overworld run data modify storage space_editor:runtime hover.dimension set value "minecraft:overworld"',
+        'execute if dimension minecraft:the_nether run data modify storage space_editor:runtime hover.dimension set value "minecraft:the_nether"',
+        'execute if dimension minecraft:the_end run data modify storage space_editor:runtime hover.dimension set value "minecraft:the_end"',
+        'execute if data storage space_editor:runtime hover{dimension:""} run return run data remove storage space_editor:runtime hover',
+        "kill @e[type=minecraft:marker,tag=space_editor.selection_capture]",
+        "summon minecraft:marker ~ ~ ~ {Tags:[\"space_editor.selection_capture\"]}",
+        *[f"execute store result storage space_editor:runtime hover.pos[{i}] int 1 run data get entity @e[type=minecraft:marker,tag=space_editor.selection_capture,limit=1,sort=nearest] Pos[{i}] 1" for i in range(3)],
+        *[f"execute store result storage space_editor:runtime hover.{axis} int 1 run data get storage space_editor:runtime hover.pos[{i}] 1" for i, axis in enumerate("xyz")],
+        "kill @e[type=minecraft:marker,tag=space_editor.selection_capture]",
+        "function space_editor:preview/selection_candidate with storage space_editor:runtime hover",
+    ])
+
     # Selection input: first click stores A; second click stores B and commits.
     fn("input/region", [
         "scoreboard players set @s se.cd 5",
-        "scoreboard players set #ray se.v 0",
-        "execute anchored eyes positioned ^ ^ ^ run function space_editor:internal/ray_block",
-    ])
-    fn("internal/ray_block", [
-        "execute unless block ~ ~ ~ #space_editor:ray_pass run return run execute align xyz run function space_editor:selection/capture",
-        "scoreboard players add #ray se.v 1",
-        "execute if score #ray se.v matches ..128 positioned ^ ^ ^0.1 run return run function space_editor:internal/ray_block",
-        message("12.8ブロック以内に対象ブロックがありません。", "red"),
+        "execute unless data storage space_editor:runtime hover.pos run return run " + message("選択予定位置を取得できません。", "red"),
+        "function space_editor:selection/capture",
     ])
     fn("selection/capture", [
-        "data remove storage space_editor:runtime clickDimension",
-        'execute if dimension minecraft:overworld run data modify storage space_editor:runtime clickDimension set value "minecraft:overworld"',
-        'execute if dimension minecraft:the_nether run data modify storage space_editor:runtime clickDimension set value "minecraft:the_nether"',
-        'execute if dimension minecraft:the_end run data modify storage space_editor:runtime clickDimension set value "minecraft:the_end"',
-        "execute unless data storage space_editor:runtime clickDimension run return run " + message("この段階は通常3ディメンションのみ対応です。", "red"),
-        "summon minecraft:marker ~ ~ ~ {Tags:[\"space_editor.capture\"]}",
-        "data modify storage space_editor:runtime clickPos set from entity @e[type=minecraft:marker,tag=space_editor.capture,limit=1,sort=nearest] Pos",
-        "kill @e[type=minecraft:marker,tag=space_editor.capture]",
+        "data modify storage space_editor:runtime clickDimension set from storage space_editor:runtime hover.dimension",
+        "data modify storage space_editor:runtime clickPos set from storage space_editor:runtime hover.pos",
         "execute unless data storage space_editor:runtime selection.a run return run function space_editor:selection/set_a",
         "function space_editor:selection/set_b",
     ])
@@ -317,6 +337,9 @@ def main() -> None:
     fn("preview/spawn_point", [
         *dimensions("kill @e[tag=space_editor.point]"),
         '$execute in $(dimension) positioned $(ax) $(ay) $(az) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.point"],block_state:{Name:"minecraft:lime_glazed_terracotta"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}',
+    ])
+    fn("preview/selection_candidate", [
+        '$execute in $(dimension) positioned $(x) $(y) $(z) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.selection_candidate"],block_state:{Name:"minecraft:orange_glazed_terracotta"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}',
     ])
     fn("preview/highlight", ['$execute in $(dimension) as @e[tag=space_editor.region,scores={se.id=$(id)}] run data merge entity @s {block_state:{Name:"minecraft:lime_glazed_terracotta"}}'])
 

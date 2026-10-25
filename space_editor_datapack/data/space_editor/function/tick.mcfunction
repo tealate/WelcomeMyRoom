@@ -1,5 +1,9 @@
 scoreboard players add @a se.cd 0
 scoreboard players remove @a[scores={se.cd=1..}] se.cd 1
+execute in minecraft:overworld run kill @e[tag=space_editor.selection_candidate]
+execute in minecraft:the_nether run kill @e[tag=space_editor.selection_candidate]
+execute in minecraft:the_end run kill @e[tag=space_editor.selection_candidate]
+execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"region"}}] run function space_editor:selection/track
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"region"}}] run function space_editor:input/region
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"resize_all"}}] run function space_editor:input/resize_all
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"resize_face"}}] run function space_editor:input/resize_face
