@@ -46,6 +46,7 @@ def append(path: Path, additions: list[str]) -> None:
 
 def main() -> None:
     stage1.main()
+    (F / "paste/ray.mcfunction").unlink(missing_ok=True)
 
     # Additive schema migration.  Phase 1 fields are never replaced.
     insert_before(F / "load.mcfunction", "第1段階を読み込みました", [
@@ -61,6 +62,8 @@ def main() -> None:
     ])
 
     insert_before(F / "tick.mcfunction", "scoreboard players set @a[scores={se.use=1..}]", [
+        'execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"paste"}}] unless data storage space_editor:runtime pastePending run function space_editor:selection/track',
+        'execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"fill"}}] run function space_editor:selection/track',
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"copy\"}}] run function space_editor:input/copy",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] run function space_editor:input/paste",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"fill\"}}] run function space_editor:input/fill",
@@ -71,8 +74,8 @@ def main() -> None:
 
     insert_before(F / "start.mcfunction", "function space_editor:preview/resync", [
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"copy\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"copy\"}},minecraft:custom_name={text:\"コピー棒\",color:\"green\",italic:false},minecraft:lore=[{text:\"Regionを見て右クリック: Template保存\",italic:false}]]",
-        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"paste\"}},minecraft:custom_name={text:\"ペースト棒\",color:\"light_purple\",italic:false},minecraft:lore=[{text:\"オフハンドのTemplateをクリック位置へ貼付\",italic:false}]]",
-        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"fill\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"fill\"}},minecraft:custom_name={text:\"Fill棒\",color:\"gold\",italic:false},minecraft:lore=[{text:\"オフハンドのブロックで見ているRegionをFill\",italic:false}]]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"paste\"}},minecraft:custom_name={text:\"ペースト棒\",color:\"light_purple\",italic:false},minecraft:lore=[{text:\"3ブロック先までの候補位置へTemplateを貼付\",italic:false}]]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"fill\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"fill\"}},minecraft:custom_name={text:\"Fill棒\",color:\"gold\",italic:false},minecraft:lore=[{text:\"3ブロック先までの候補位置を含むRegionをFill\",italic:false}]]",
     ])
 
     # Copy selects the nearest Region through the phase-1 AABB ray test.
@@ -118,7 +121,8 @@ def main() -> None:
         "return 1",
     ])
 
-    # Fill uses the selected Region and the main-hand item's block id.  The
+    # Fill uses the same three-block hover cell as the Region wand. The Region
+    # containing the center of that cell is selected. The
     # Region is marked fill-only immediately before the operation and removed
     # only when /fill succeeds.
     fn("fill", ["function space_editor:fill/start"])
@@ -132,8 +136,16 @@ def main() -> None:
         "scoreboard players set @s se.cd 5",
         'data modify storage space_editor:runtime activeTool set value "fill"',
         "data remove storage space_editor:runtime hit",
-        "scoreboard players set #region_ray se.v 0",
-        "execute anchored eyes positioned ^ ^ ^ run function space_editor:region/ray",
+        "execute unless data storage space_editor:runtime hover.pos run return run " + message("選択予定位置を取得できません。", "red"),
+        "function space_editor:region/from_hover",
+    ])
+    fn("region/from_hover", [
+        *[f"execute store result score #p{axis} se.v run data get storage space_editor:runtime hover.{axis} 1000" for axis in "xyz"],
+        *[f"scoreboard players add #p{axis} se.v 500" for axis in "xyz"],
+        "data modify storage space_editor:runtime candidates set from storage space_editor:document regions",
+        "execute if data storage space_editor:runtime candidates[0] run function space_editor:region/check_next",
+        "execute if data storage space_editor:runtime hit run return run function space_editor:region/apply_hit",
+        message("選択予定位置を含むRegionがありません。", "red"),
     ])
     fn("fill/offhand", [
         "data remove storage space_editor:runtime fillBlock",
@@ -202,8 +214,8 @@ def main() -> None:
         '$execute in $(archiveDimension) run forceload remove $(archiveX1) $(archiveZ1) $(archiveX2) $(archiveZ2)',
     ])
 
-    # Paste reads a reference-only template item from the offhand, then raycasts
-    # to the first solid block.  That clicked block coordinate is the origin.
+    # Paste reads a reference-only template item from the offhand and commits
+    # the same three-block hover cell used by the Region wand as its origin.
     fn("input/paste", [
         "scoreboard players set @s se.cd 5",
         'execute if data storage space_editor:runtime pastePending if predicate {condition:"minecraft:entity_properties",entity:"this",predicate:{flags:{is_sneaking:true}}} run return run function space_editor:paste/cancel',
@@ -215,24 +227,12 @@ def main() -> None:
         "data modify storage space_editor:runtime lookup set value {id:0}",
         "execute store result storage space_editor:runtime lookup.id int 1 run data get storage space_editor:runtime pasteItem.components.\"minecraft:custom_data\".space_editor.templateId 1",
         *[f"execute store result storage space_editor:runtime lookup.owner{i} int 1 run data get entity @s UUID[{i}] 1" for i in range(4)],
-        "data remove storage space_editor:runtime targetDimension",
-        'execute if dimension minecraft:overworld run data modify storage space_editor:runtime targetDimension set value "minecraft:overworld"',
-        'execute if dimension minecraft:the_nether run data modify storage space_editor:runtime targetDimension set value "minecraft:the_nether"',
-        'execute if dimension minecraft:the_end run data modify storage space_editor:runtime targetDimension set value "minecraft:the_end"',
-        "execute unless data storage space_editor:runtime targetDimension run return run " + message("このDimensionにはPasteできません。", "red"),
-        "scoreboard players set #paste_ray se.v 0",
-        "execute anchored eyes positioned ^ ^ ^ run function space_editor:paste/ray",
-    ])
-    fn("paste/ray", [
-        "execute unless block ~ ~ ~ #space_editor:ray_pass run return run execute align xyz run function space_editor:paste/capture",
-        "scoreboard players add #paste_ray se.v 1",
-        "execute if score #paste_ray se.v matches ..128 positioned ^ ^ ^0.1 run return run function space_editor:paste/ray",
-        message("12.8ブロック以内にPaste始点となるブロックがありません。", "red"),
+        "execute unless data storage space_editor:runtime hover.pos run return run " + message("選択予定位置を取得できません。", "red"),
+        "function space_editor:paste/capture",
     ])
     fn("paste/capture", [
-        "summon minecraft:marker ~ ~ ~ {Tags:[\"space_editor.paste_anchor\"]}",
-        "data modify storage space_editor:runtime targetPos set from entity @e[type=minecraft:marker,tag=space_editor.paste_anchor,limit=1,sort=nearest] Pos",
-        "kill @e[type=minecraft:marker,tag=space_editor.paste_anchor]",
+        "data modify storage space_editor:runtime targetDimension set from storage space_editor:runtime hover.dimension",
+        "data modify storage space_editor:runtime targetPos set from storage space_editor:runtime hover.pos",
         "function space_editor:paste/preview with storage space_editor:runtime lookup",
     ])
     fn("paste/preview", [
@@ -447,7 +447,8 @@ def main() -> None:
     append(F / "menu.mcfunction", [
         message("Fill: Region選択→ブロックをメインハンド→/function space_editor:fill"),
         message("Fill: Fill棒＋オフハンド素材 / Copy: コピー棒 / Paste: ペースト棒＋オフハンドTemplate"),
-        message("Pasteは1回目で範囲表示、2回目で確定。Shift＋右クリックでキャンセル。"),
+        message("Fill/Paste棒は範囲棒と同じ3ブロック候補を使用。ブロックがなければ空中セルを選択します。"),
+        message("Pasteは1回目で範囲表示、2回目で確定。キャンセル: /function space_editor:paste/cancel"),
         message("Job: /function space_editor:job/pause | resume | retry | cancel"),
         message("再発行: /function space_editor:template/reissue {id:1}"),
     ])

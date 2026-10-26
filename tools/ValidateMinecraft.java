@@ -28,7 +28,22 @@ public class ValidateMinecraft {
                 String line = lines.get(i).strip();
                 if (line.isEmpty() || line.startsWith("#")) continue;
                 if (line.startsWith("$")) {
-                    line = macro.matcher(line.substring(1)).replaceAll(m -> Matcher.quoteReplacement(values.getOrDefault(m.group(1), "1")));
+                    Map<String,String> lineValues = new HashMap<>(values);
+                    String file = path.getFileName().toString();
+                    if (path.toString().contains("transform\\apply_axis_waterlogged")) {
+                        lineValues.put("block", "minecraft:iron_chain"); lineValues.put("axis", "x"); lineValues.put("waterlogged", "false");
+                    } else if (path.toString().contains("transform\\apply_axis")) {
+                        lineValues.put("block", "minecraft:oak_log"); lineValues.put("axis", "x"); lineValues.put("waterlogged", "false");
+                    } else if (path.toString().contains("transform\\apply_connections")) {
+                        lineValues.put("block", "minecraft:oak_fence"); lineValues.put("north", "false"); lineValues.put("east", "false"); lineValues.put("south", "false"); lineValues.put("west", "false"); lineValues.put("waterlogged", "false");
+                    } else if (path.toString().contains("transform\\apply_slab")) {
+                        lineValues.put("block", "minecraft:stone_slab"); lineValues.put("type", "bottom"); lineValues.put("waterlogged", "false");
+                    } else if (path.toString().contains("transform\\apply_stairs")) {
+                        lineValues.put("block", "minecraft:oak_stairs"); lineValues.put("facing", "north"); lineValues.put("half", "bottom"); lineValues.put("shape", "straight"); lineValues.put("waterlogged", "false");
+                    } else if (path.toString().contains("transform\\apply_wall")) {
+                        lineValues.put("block", "minecraft:cobblestone_wall"); lineValues.put("north", "none"); lineValues.put("east", "none"); lineValues.put("south", "none"); lineValues.put("west", "none"); lineValues.put("up", "true"); lineValues.put("waterlogged", "false");
+                    }
+                    line = macro.matcher(line.substring(1)).replaceAll(m -> Matcher.quoteReplacement(lineValues.getOrDefault(m.group(1), "1")));
                 }
                 count++;
                 try { Commands.validateParseResults(dispatcher.parse(line, source)); }

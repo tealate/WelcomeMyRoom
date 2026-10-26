@@ -1,0 +1,183 @@
+// Runtime checks for Space Editor phase 3 on Minecraft Java 26.1.
+import java.nio.file.*;
+import java.util.function.*;
+import net.minecraft.SharedConstants;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.*;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.gametest.framework.*;
+import net.minecraft.resources.*;
+import net.minecraft.nbt.*;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.properties.*;
+
+public class SpaceEditorStage3GameTest {
+    static GameTestHelper helper;
+    static CommandSourceStack source;
+    static net.minecraft.server.level.ServerPlayer player;
+    static boolean finished;
+    static int step, waitTicks, pasteIndex;
+    static final int AX=20000064, AY=-63, AZ=20000000;
+    static final int TY=80;
+    static final int[] ROT={0,90,180,270,0,90,180,270};
+    static final int[] FLIP={0,0,0,0,1,1,1,1};
+    static final String[] CUBE={"minecraft:stone","minecraft:dirt","minecraft:oak_planks","minecraft:bricks","minecraft:gold_block","minecraft:diamond_block","minecraft:emerald_block","minecraft:redstone_block"};
+    static final Identifier DOCUMENT=Identifier.parse("space_editor:document");
+    static final Identifier RUNTIME=Identifier.parse("space_editor:runtime");
+
+    static CompoundTag document(){return helper.getLevel().getServer().getCommandStorage().get(DOCUMENT);}
+    static CompoundTag runtime(){return helper.getLevel().getServer().getCommandStorage().get(RUNTIME);}
+    static void cmd(String c){helper.getLevel().getServer().getCommands().performPrefixedCommand(source,c);}
+    static void pcmd(String c){helper.getLevel().getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack().withPermission(net.minecraft.server.permissions.PermissionSet.ALL_PERMISSIONS),c);}
+    static int score(String objective){var board=helper.getLevel().getScoreboard();return board.getOrCreatePlayerScore(player,board.getObjective(objective)).get();}
+    static void check(boolean ok,String message){if(!ok)throw new AssertionError(message+" DOCUMENT="+document()+" RUNTIME="+runtime());}
+    static String jobState(){return document().getCompoundOrEmpty("job").getStringOr("state","");}
+
+    static void startPaste(int id,int rotation,int flip,int x,int y,int z){
+        cmd("data modify storage space_editor:runtime targetDimension set value \"minecraft:overworld\"");
+        cmd("data modify storage space_editor:runtime targetPos set value [I;"+x+","+y+","+z+"]");
+        cmd("data modify storage space_editor:runtime lookup set value {id:"+id+",owner0:0,owner1:0,owner2:0,owner3:0}");
+        cmd("data modify storage space_editor:runtime pasteTransform set value {rotation:"+rotation+",flipY:"+flip+"b}");
+        pcmd("function space_editor:paste/start {id:"+id+"}");
+        check(jobState().equals("running"),"paste job started id="+id+" rot="+rotation+" flip="+flip);
+    }
+
+    static void tickJob(){if(jobState().equals("running"))cmd("function space_editor:job/tick");}
+
+    static BlockPos mapped(int originX,int originY,int originZ,int x,int y,int z,int rotation,int flip){
+        int tx=x,tz=z;
+        if(rotation==90){tx=1-z;tz=x;}
+        else if(rotation==180){tx=1-x;tz=1-z;}
+        else if(rotation==270){tx=z;tz=1-x;}
+        int ty=flip==1?1-y:y;
+        return new BlockPos(originX+tx,originY+ty,originZ+tz);
+    }
+
+    static void verifyCube(int index){
+        int ox=index*5, oz=0, rotation=ROT[index], flip=FLIP[index];
+        for(int y=0;y<2;y++)for(int z=0;z<2;z++)for(int x=0;x<2;x++){
+            Block expected=BuiltInRegistries.BLOCK.getValue(Identifier.parse(CUBE[x+2*(z+2*y)]));
+            check(helper.getLevel().getBlockState(mapped(ox,TY,oz,x,y,z,rotation,flip)).is(expected),
+                "cube coordinate map state="+index+" source="+x+","+y+","+z);
+        }
+        var job=document().getCompoundOrEmpty("job");
+        check(job.getIntOr("rotation",-1)==rotation && job.getBooleanOr("flipY",false)==(flip==1),"job persisted transform");
+    }
+
+    static void setup(GameTestHelper h){
+        helper=h; source=h.getLevel().getServer().createCommandSourceStack(); finished=false; step=0; waitTicks=0; pasteIndex=0;
+        cmd("function space_editor:load");
+        cmd("data modify storage space_editor:document templates set value []");
+        cmd("data modify storage space_editor:document actions set value []");
+        cmd("data modify storage space_editor:document nextActionId set value 1");
+        cmd("forceload add "+AX+" "+AZ+" "+(AX+200)+" "+(AZ+8));
+        for(int y=0;y<2;y++)for(int z=0;z<2;z++)for(int x=0;x<2;x++)
+            cmd("setblock "+(AX+x)+" "+(AY+y)+" "+(AZ+z)+" "+CUBE[x+2*(z+2*y)]);
+        cmd("setblock "+(AX+64)+" "+AY+" "+AZ+" minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false] strict");
+        cmd("setblock "+(AX+65)+" "+AY+" "+AZ+" minecraft:oak_slab[type=bottom,waterlogged=false] strict");
+        cmd("setblock "+(AX+66)+" "+AY+" "+AZ+" minecraft:oak_fence[north=true,east=false,south=true,west=false,waterlogged=false] strict");
+        cmd("setblock "+(AX+96)+" "+AY+" "+AZ+" minecraft:oak_stairs[facing=west,half=bottom,shape=straight,waterlogged=false] strict");
+        cmd("setblock "+(AX+97)+" "+AY+" "+AZ+" minecraft:stone_slab[type=bottom,waterlogged=false] strict");
+        cmd("setblock "+(AX+128)+" "+AY+" "+AZ+" minecraft:chest[facing=north]");
+        cmd("fill "+(AX+160)+" "+AY+" "+AZ+" "+(AX+164)+" "+(AY+2)+" "+(AZ+4)+" minecraft:stone");
+        cmd("data modify storage space_editor:document templates set value ["+
+            "{id:1,version:1,archive:{dimension:\"minecraft:overworld\",x:"+AX+",y:"+AY+",z:"+AZ+"},size:[I;2,2,2]},"+
+            "{id:2,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+64)+",y:"+AY+",z:"+AZ+"},size:[I;3,1,1]},"+
+            "{id:3,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+96)+",y:"+AY+",z:"+AZ+"},size:[I;2,1,1]},"+
+            "{id:4,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+128)+",y:"+AY+",z:"+AZ+"},size:[I;1,1,1]},"+
+            "{id:5,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+160)+",y:"+AY+",z:"+AZ+"},size:[I;5,3,5]}]");
+        player=h.makeMockServerPlayerInLevel(); player.setNoGravity(true); player.setPos(0.5,TY+3,0.5);
+        startPaste(1,ROT[0],FLIP[0],0,TY,0);
+    }
+
+    static void test(GameTestHelper h){
+        setup(h);
+        h.onEachTick(() -> {
+            if(finished)return;
+            try{
+                if(step==0){
+                    tickJob(); waitTicks++;
+                    if(!jobState().equals("running")){
+                        verifyCube(pasteIndex); pasteIndex++; waitTicks=0;
+                        if(pasteIndex<8) startPaste(1,ROT[pasteIndex],FLIP[pasteIndex],pasteIndex*5,TY,0);
+                        else {startPaste(2,90,0,45,TY,0);step=1;}
+                    } else if(waitTicks>20)throw new AssertionError("cube transform timeout "+pasteIndex);
+                } else if(step==1){
+                    tickJob(); waitTicks++;
+                    if(!jobState().equals("running")){
+                        var stair=helper.getLevel().getBlockState(new BlockPos(45,TY,0));
+                        var slab=helper.getLevel().getBlockState(new BlockPos(45,TY,1));
+                        var fence=helper.getLevel().getBlockState(new BlockPos(45,TY,2));
+                        check(stair.is(Blocks.OAK_STAIRS) && stair.getValue(BlockStateProperties.HORIZONTAL_FACING)==Direction.EAST && stair.getValue(BlockStateProperties.HALF)==Half.BOTTOM && stair.getValue(BlockStateProperties.STAIRS_SHAPE)==StairsShape.STRAIGHT,"stair state rotated actual="+stair);
+                        check(slab.is(Blocks.OAK_SLAB) && slab.getValue(BlockStateProperties.SLAB_TYPE)==SlabType.BOTTOM,"slab state preserved");
+                        check(fence.is(Blocks.OAK_FENCE) && fence.getValue(BlockStateProperties.EAST) && fence.getValue(BlockStateProperties.WEST),"fence connections rotated");
+                        startPaste(3,0,1,50,TY,0);step=2;waitTicks=0;
+                    } else if(waitTicks>20)throw new AssertionError("state rotation timeout");
+                } else if(step==2){
+                    tickJob(); waitTicks++;
+                    if(!jobState().equals("running")){
+                        var stair=helper.getLevel().getBlockState(new BlockPos(50,TY,0));
+                        var slab=helper.getLevel().getBlockState(new BlockPos(51,TY,0));
+                        check(stair.getValue(BlockStateProperties.HALF)==Half.TOP,"FlipY toggled stair half");
+                        check(slab.getValue(BlockStateProperties.SLAB_TYPE)==SlabType.TOP,"FlipY toggled slab type");
+                        cmd("setblock 55 "+TY+" 0 minecraft:gold_block");
+                        startPaste(4,90,0,55,TY,0);step=3;waitTicks=0;
+                    } else if(waitTicks>20)throw new AssertionError("state flip timeout");
+                } else if(step==3){
+                    tickJob(); waitTicks++;
+                    if(!jobState().equals("running")){
+                        var skippedJob=document().getCompoundOrEmpty("job");
+                        check(skippedJob.getIntOr("unsupportedBlocks",-1)==1 && skippedJob.getIntOr("skippedBlocks",-1)==1,"unsupported chest counted and skipped");
+                        check(helper.getLevel().getBlockState(new BlockPos(55,TY,0)).is(Blocks.GOLD_BLOCK),"unsupported transform preserved destination block");
+                        var skippedAction=document().getListOrEmpty("actions").getCompoundOrEmpty(10);
+                        check(skippedAction.getIntOr("skippedBlocks",-1)==1,"skip warning persisted in action");
+                        startPaste(5,90,0,60,TY,0); step=4; waitTicks=0;
+                    } else if(waitTicks>20)throw new AssertionError("unsupported preflight timeout");
+                } else if(step==4){
+                    var job=document().getCompoundOrEmpty("job");
+                    if(waitTicks==0){
+                        job=document().getCompoundOrEmpty("job");
+                        check(jobState().equals("running") && job.getStringOr("phase","").equals("preflight") && job.getIntOr("cursor",-1)==64,"large preflight paused at batch boundary");
+                        waitTicks=1;
+                    } else if(waitTicks==1){
+                        job=document().getCompoundOrEmpty("job");
+                        check(jobState().equals("running") && job.getStringOr("phase","").equals("place") && job.getIntOr("cursor",-1)==0,"large preflight transitioned to placement");
+                        waitTicks=2;
+                    } else if(waitTicks==2){
+                        job=document().getCompoundOrEmpty("job");
+                        check(jobState().equals("running") && job.getStringOr("phase","").equals("place") && job.getIntOr("cursor",-1)==64 && job.getIntOr("completedBlocks",-1)==64,"large placement paused at batch boundary");
+                        cmd("function space_editor:load"); job=document().getCompoundOrEmpty("job");
+                        check(jobState().equals("running") && job.getIntOr("cursor",-1)==64,"load preserved transformed cursor");
+                        waitTicks=3;
+                    } else {
+                        check(jobState().equals("done"),"large transformed paste resumed and completed");
+                        check(helper.getLevel().getBlockState(new BlockPos(60,TY,0)).is(Blocks.STONE) && helper.getLevel().getBlockState(new BlockPos(64,TY+2,4)).is(Blocks.STONE),"large transformed paste output present");
+                        pcmd("item replace entity @s weapon.mainhand with minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"paste\"}}]");
+                        player.setYRot(0); player.setXRot(0); pcmd("function space_editor:paste_mode/begin");
+                        player.setYRot(-90); pcmd("function space_editor:paste_mode/read_intent");
+                        check(score("se.intent")==1,"left look intent detected");
+                        pcmd("function space_editor:paste_mode/apply");
+                        check(score("se.rot")==270,"shift-left selected left rotation");
+                        player.setXRot(-60); pcmd("function space_editor:paste_mode/read_intent");
+                        check(score("se.intent")==3,"vertical look intent detected");
+                        pcmd("function space_editor:paste_mode/apply");
+                        check(score("se.flip")==1,"shift-up toggled FlipY");
+                        check(document().getListOrEmpty("actions").size()==12,"successful and partially skipped pastes persisted actions");
+                        System.out.println("SPACE_EDITOR_STAGE3_RUNTIME_PASS: 8 coordinate states, reload-resumed cursor, stair/slab/fence states, unsupported skip warning, shift controls");
+                        finished=true;h.succeed();
+                    }
+                }
+            }catch(Throwable ex){finished=true;ex.printStackTrace();h.fail(ex.getMessage());}
+        });
+    }
+
+    public static void main(String[] args)throws Exception{
+        SharedConstants.tryDetectVersion();
+        TestFunctionLoader.registerLoader(new TestFunctionLoader(){public void load(BiConsumer<ResourceKey<Consumer<GameTestHelper>>,Consumer<GameTestHelper>> register){register.accept(ResourceKey.create(Registries.TEST_FUNCTION,Identifier.parse("editor_test:integration")),SpaceEditorStage3GameTest::test);}});
+        Path universe=Path.of(args[0]).toAbsolutePath().normalize();
+        Path allowed=Path.of("build/test-server").toAbsolutePath().normalize();
+        if(!universe.startsWith(allowed)||Files.exists(universe))throw new IllegalArgumentException("Fresh build/test-server subdirectory required");
+        GameTestMainUtil.runGameTestServer(new String[]{"--universe",universe.toString(),"--packs",Path.of(args[1]).toAbsolutePath().toString(),"--tests","editor_test:integration","--report",Path.of("build/test-server/stage3-runtime-report.xml").toAbsolutePath().toString()},ignored->{});
+    }
+}

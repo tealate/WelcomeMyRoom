@@ -26,4 +26,11 @@ execute unless data storage space_editor:document nextActionId run data modify s
 execute unless data storage space_editor:document archive run data modify storage space_editor:document archive set value {dimension:"minecraft:overworld",baseX:20000000,baseY:-63,baseZ:20000000,stride:64}
 execute if data storage space_editor:document job{state:"running"} run tellraw @a {"text": "[Space Editor] 保存中のCopy/Paste Jobを再開します。", "color": "yellow"}
 tellraw @a {"text": "[Space Editor] 第1段階を読み込みました。/function space_editor:start", "color": "aqua"}
+scoreboard objectives add se.ph dummy
+scoreboard objectives add se.pyaw dummy
+scoreboard objectives add se.pitch dummy
+scoreboard objectives add se.rot dummy
+scoreboard objectives add se.flip dummy
+scoreboard objectives add se.intent dummy
 tellraw @a {"text": "[Space Editor] 第2段階: Fill / Copy / Pasteを読み込みました。", "color": "aqua"}
+tellraw @a {"text": "[Space Editor] 第3段階: 水平回転 / FlipY変換を読み込みました。", "color": "aqua"}

@@ -1,0 +1,2 @@
+$execute in $(sourceDimension) unless block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:transform_allowed run function space_editor:transform/record_unsupported
+$execute if data storage space_editor:document job{flipY:1b} in $(sourceDimension) if block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:transform_vertical_unsupported run function space_editor:transform/record_unsupported

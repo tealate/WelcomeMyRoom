@@ -8,6 +8,9 @@ data modify storage space_editor:runtime targetPos set value [I;0,0,0]
 data modify storage space_editor:runtime targetPos[0] set from storage space_editor:runtime pastePending.x
 data modify storage space_editor:runtime targetPos[1] set from storage space_editor:runtime pastePending.y
 data modify storage space_editor:runtime targetPos[2] set from storage space_editor:runtime pastePending.z
+data modify storage space_editor:runtime pasteTransform set value {rotation:0,flipY:0b}
+data modify storage space_editor:runtime pasteTransform.rotation set from storage space_editor:runtime pastePending.rotation
+data modify storage space_editor:runtime pasteTransform.flipY set from storage space_editor:runtime pastePending.flipY
 function space_editor:paste/start with storage space_editor:runtime lookup
 execute if data storage space_editor:document job{type:"paste",state:"running"} run function space_editor:paste/hide_preview
 execute if data storage space_editor:document job{type:"paste",state:"running"} run data remove storage space_editor:runtime pastePending

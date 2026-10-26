@@ -1,7 +1,7 @@
-# Space Editor — 第2段階（新仕様）
+# Space Editor — 第3段階（回転・上下反転）
 
-現在ロードされる実装は、01のRegion編集基盤にNotion
-「02｜ブロック配置・コピー・ペースト・保存」を追加した版です。旧版のBlock / Mask / TP機能と
+現在ロードされる実装は、01のRegion編集基盤と02のブロック操作に、Notion
+「03｜回転・上下反転・ブロック変換エンジン」を追加した版です。旧版のBlock / Mask / TP機能と
 保存データは削除していませんが、この段階ではロードも実行もしません。
 
 ## まず試す
@@ -20,16 +20,28 @@
 
 ## Fill / Copy / Paste
 
-- **Fill**：Fill棒をメインハンド、素材ブロックをオフハンドに持ち、対象Regionを見て右クリック。
-  成功時だけ、そのFill専用Regionとプレビューを削除します。従来のコマンド操作も残しています。
+- **Fill**：Fill棒をメインハンド、素材ブロックをオフハンドに持ちます。範囲選択棒と同じく、視線上
+  3ブロック以内のブロック、またはブロックがなければ3ブロック先の空中セルへ1ブロック仮枠が追従します。
+  右クリックすると、そのセルの中心を含むRegionをFillします。成功時だけ、そのFill専用Regionと
+  プレビューを削除します。従来のコマンド操作も残しています。
 - **Copy**：コピー棒でRegionを見て右クリック。完了すると`Template #ID`アイテムを受け取ります。
-- **Paste**：ペースト棒をメインハンド、Templateアイテムをオフハンドに持ってブロックを右クリック。
-  1回目でクリックしたブロック座標を始点とする範囲を表示し、2回目の右クリックで確定します。
-  プレビュー中のShift＋右クリックでキャンセルできます。現段階は0度・上下反転なし・airを含む貼付です。
+- **Paste**：ペースト棒をメインハンド、Templateアイテムをオフハンドに持ちます。Fill棒と同じ
+  1ブロック仮枠を始点候補として表示し、ブロックがなくても3ブロック先の空中セルを選べます。
+  1回目の右クリックで候補座標を始点とするPaste範囲を表示し、2回目で確定します。airも含めて貼り付けます。
+- ペースト棒へ持ち替えた瞬間の向きを基準に、**Shift＋右クリック**で変換を選びます。
+  左を見ると左90度、右を見ると右90度、上下を見るとFlipYを切り替えます。現在の`Rot` / `FlipY`と
+  入力候補はアクションバーに表示され、1回目のクリック後も仮枠へ即時反映されます。
+  通常の向きへ戻して右クリックすると貼り付け確定です。棒を持ち替えると`Rot 0° / FlipY OFF`へ戻ります。
+- プレビューのキャンセルは `/function space_editor:paste/cancel` です。Shiftは変換操作専用です。
 - Templateアイテムは参照キーだけを保持します。紛失時は
   `/function space_editor:template/reissue {id:1}`で再発行できます。
-- Copy/Pasteは現在の`minecraft:max_block_modifications`に合わせてX方向へ分割し、1区画ずつ処理します。
-  進捗は`storage space_editor:document job`へ保存され、`/reload`後も継続します。
+- 無変換Pasteは02と同じ高速な分割`clone`を使います。回転またはFlipYありのPasteは、全ブロックを
+  先に検査してから1tick最大64ブロックずつ座標・状態を変換します。進捗カーソルは
+  `storage space_editor:document job`へ保存され、`/reload`後も途中から継続します。
+- 変換対応は通常の完全立方体、階段、ハーフブロック、柵・板ガラス、塀、柱系（`axis`）です。
+  未対応の向き・形状・BlockEntityは、その配置先を変更せずスキップして残りを続行します。
+  事前走査時と完了時にスキップ数を警告し、Actionにも`skippedBlocks`を保存します。
+  柵・板ガラス・塀のFlipYも、衝突形状を正しく反転できないためスキップ対象です。
 - Job操作：`/function space_editor:job/pause`、`resume`、`retry`、`cancel`。
 
 ブロック操作は整数のブロック境界に揃ったRegionだけ受け付けます。01の0.1刻み伸縮で境界が小数に
@@ -44,7 +56,7 @@ Regionの正本は `storage space_editor:document` にあり、`schemaVersion:1`
 `id` / `idText`、`dimension`、整数配列 `min` / `maxExclusive`、`role`、表示状態を保存します。
 クリック途中のSelectionは `storage space_editor:runtime selection` に分離しています。
 
-この段階では回転・上下反転、Mask本体、TP、Portal、Undo/Redo、JSON書き出しは実装対象外です。
+この段階ではMask本体、TP、Portal、Undo/Redo、JSON書き出しは実装対象外です。
 以下は保存してある旧版の資料です。
 
 ---

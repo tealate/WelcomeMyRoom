@@ -1,0 +1,1 @@
+$return run clone from $(sourceDimension) $(blockSourceX) $(blockSourceY) $(blockSourceZ) $(blockSourceX) $(blockSourceY) $(blockSourceZ) to $(targetDimension) $(blockTargetX) $(blockTargetY) $(blockTargetZ) strict replace force

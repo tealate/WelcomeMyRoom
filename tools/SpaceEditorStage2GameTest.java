@@ -74,6 +74,7 @@ public class SpaceEditorStage2GameTest {
                         player.setPos(x+8.5,y+3,z+0.5);
                         player.setXRot(90.0f);
                         pcmd("item replace entity @s weapon.offhand with minecraft:paper[minecraft:custom_data={space_editor:{kind:\"template\",templateId:1,version:1}}]");
+                        cmd("data modify storage space_editor:runtime hover set value {dimension:\"minecraft:overworld\",pos:[I;"+(x+8)+","+y+","+z+"],x:"+(x+8)+",y:"+y+",z:"+z+"}");
                         pcmd("function space_editor:input/paste");
                         check(runtime().contains("pastePending"),"first paste click stores preview state");
                         check(!jobState().equals("running"),"first paste click does not modify blocks");
@@ -91,10 +92,9 @@ public class SpaceEditorStage2GameTest {
                         int fx=x+12;
                         cmd("data modify storage space_editor:runtime selection set value {a:[I;"+fx+","+y+","+z+"],b:[I;"+fx+","+y+","+z+"],dimension:\"minecraft:overworld\"}");
                         cmd("function space_editor:region/create");
-                        cmd("data modify storage space_editor:runtime hit set from storage space_editor:document regions[1]");
-                        cmd("data modify storage space_editor:runtime activeTool set value \"fill\"");
+                        cmd("data modify storage space_editor:runtime hover set value {dimension:\"minecraft:overworld\",pos:[I;"+fx+","+y+","+z+"],x:"+fx+",y:"+y+",z:"+z+"}");
                         pcmd("item replace entity @s weapon.offhand with minecraft:gold_block");
-                        pcmd("function space_editor:region/apply_hit");
+                        pcmd("function space_editor:input/fill");
                         check(h.getLevel().getBlockState(new BlockPos(fx,y,z)).is(Blocks.GOLD_BLOCK),"main-hand block filled");
                         check(regions().size()==1,"successful fill removed only its Region");
                         step=3;
@@ -103,7 +103,7 @@ public class SpaceEditorStage2GameTest {
                     cmd("function space_editor:load");
                     check(document().getListOrEmpty("templates").size()==1,"reload preserves template registry");
                     check(document().getListOrEmpty("actions").size()==1,"reload preserves paste action");
-                    System.out.println("SPACE_EDITOR_STAGE2_RUNTIME_PASS: fill wand cleanup, clicked-block paste anchor, template archive, split clone copy/paste, action persistence, reload persistence");
+                    System.out.println("SPACE_EDITOR_STAGE2_RUNTIME_PASS: shared-hover fill/paste targeting, fill wand cleanup, template archive, split clone copy/paste, action persistence, reload persistence");
                     finished=true; h.succeed();
                 }
             } catch (Throwable ex) { finished=true; ex.printStackTrace(); h.fail(ex.getMessage()); }

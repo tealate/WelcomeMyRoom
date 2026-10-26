@@ -3,3 +3,4 @@ tellraw @s [{text:"Selection: ",color:"aqua"},{nbt:"selection",storage:"space_ed
 tellraw @s [{text:"Selected: ",color:"yellow"},{nbt:"selectedId",storage:"space_editor:document"},{text:" / step="},{nbt:"settings.step",storage:"space_editor:document"}]
 tellraw @s [{text:"Templates: ",color:"green"},{nbt:"templates",storage:"space_editor:document",interpret:false}]
 tellraw @s [{text:"Job: ",color:"light_purple"},{nbt:"job",storage:"space_editor:document",interpret:false}]
+tellraw @s [{text:"Paste transform: Rot=",color:"light_purple"},{score:{name:"@s",objective:"se.rot"}},{text:" / FlipY="},{score:{name:"@s",objective:"se.flip"}}]
