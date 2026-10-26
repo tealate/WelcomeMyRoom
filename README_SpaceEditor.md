@@ -76,6 +76,27 @@ Minecraft Java Edition **26.1** 用、1人編集の空間制作ツールです�
   `space_editor_datapack/`をディレクトリジャンクションで直接参照します。
 - `build_space_editor.py`で生成した見た目も、有効な`assets/`へ自動反映します。
 
+### 表示・マスク用ブロックの割り当て
+
+`space_editor_blocks.json`を、Space Editorが専用表示に借りるブロックの正本として使います。
+`displayBlocks`では範囲枠・補助枠・1ブロック候補・マスク本体を、
+`maskablePalettes`では通常ブロック・マスク表示用の代理ブロック・元テクスチャを変更できます。
+
+設定変更後は、次を順番に実行してください。
+
+```powershell
+python tools/build_space_editor.py
+python tools/build_space_editor_stage3.py
+```
+
+生成時に、未知のキー、不正または26.1に存在しないブロックID、重複したブロック割り当て、
+存在しない元テクスチャ、別用途ですでに上書き済みのblockstateを検出すると、
+変更内容が分かるエラーで、生成物を書き換える前に停止します。
+以前の割り当ては`space_editor_generated_manifest.json`で管理します。新しく借りるblockstateに
+既存の定義があれば元のバイト列を退避し、割り当て解除時に完全復元します。
+生成後に手作業で変更された管理ファイルは上書き・解除せず、ハッシュ不一致エラーで停止します。
+生成が完了したら処理側を`/reload`、見た目を`F3+T`で再読み込みしてください。
+
 1. `/reload`を実行します。
 2. `F3+T`で見た目を再読み込みします。
 3. `/function editor:start`で**専用の選択棒**を受け取ります。

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "managedBlockstates": {
+    "assets/minecraft/blockstates/blue_terracotta.json": {
+      "generatedHash": "601b6f872e6b6a8edad1062bca03374c44c143ef3eb8eef40a7e9cf145db422f",
+      "originalBase64": null
+    },
+    "assets/minecraft/blockstates/brown_terracotta.json": {
+      "generatedHash": "9afa166bfb3f2ec09e4fc02ab52a7928440c6b15b494dad195a77917dc37d94d",
+      "originalBase64": null
+    },
+    "assets/minecraft/blockstates/lime_glazed_terracotta.json": {
+      "generatedHash": "43034e342dcb018eaeb564e7f79fa5375eb0a1232134f2299c7948e513058edb",
+      "originalBase64": null
+    },
+    "assets/minecraft/blockstates/magenta_glazed_terracotta.json": {
+      "generatedHash": "de582eedd91bc6d6f9a3ef568060bab6068186ec5b376299bbb865aab4b2061a",
+      "originalBase64": null
+    },
+    "assets/minecraft/blockstates/orange_terracotta.json": {
+      "generatedHash": "65b8b3306a4b8b1f1b1eedaaa6eb952cd0b34e3cae076f59af2ee11810738933",
+      "originalBase64": null
+    },
+    "assets/minecraft/blockstates/red_terracotta.json": {
+      "generatedHash": "ac49c282d3768b0c6ee42de0415c438673675e7b4d016a3b2d8798c54d4375ab",
+      "originalBase64": null
+    },
+    "assets/minecraft/blockstates/waxed_oxidized_cut_copper.json": {
+      "generatedHash": "9188cdd25423202f00791ffd0a4df069173597f5d7773efdc06782682c10c129",
+      "originalBase64": null
+    },
+    "assets/minecraft/blockstates/white_terracotta.json": {
+      "generatedHash": "75e035613a6c845f7540eaecc75a188b25048724ccda41a1ce0b3c87a6925f02",
+      "originalBase64": null
+    }
+  }
+}

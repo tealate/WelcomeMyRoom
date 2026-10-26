@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "displayBlocks": {
+    "selection": "minecraft:magenta_glazed_terracotta",
+    "guide": "minecraft:lime_glazed_terracotta",
+    "selectionCandidate": "minecraft:orange_glazed_terracotta",
+    "maskBody": "minecraft:waxed_oxidized_cut_copper"
+  },
+  "maskablePalettes": {
+    "stone": {
+      "normalBlock": "minecraft:stone",
+      "carrierBlock": "minecraft:blue_terracotta",
+      "sourceTexture": "minecraft:block/stone"
+    },
+    "dirt": {
+      "normalBlock": "minecraft:dirt",
+      "carrierBlock": "minecraft:brown_terracotta",
+      "sourceTexture": "minecraft:block/dirt"
+    },
+    "oak": {
+      "normalBlock": "minecraft:oak_planks",
+      "carrierBlock": "minecraft:orange_terracotta",
+      "sourceTexture": "minecraft:block/oak_planks"
+    },
+    "bricks": {
+      "normalBlock": "minecraft:bricks",
+      "carrierBlock": "minecraft:red_terracotta",
+      "sourceTexture": "minecraft:block/bricks"
+    },
+    "quartz": {
+      "normalBlock": "minecraft:quartz_block",
+      "carrierBlock": "minecraft:white_terracotta",
+      "sourceTexture": "minecraft:block/quartz_block_side"
+    }
+  }
+}

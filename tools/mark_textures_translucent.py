@@ -11,11 +11,18 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import shutil
 import tempfile
 
 from PIL import Image
 
 TEXTURE_ROOT = Path("assets/minecraft/textures")
+
+
+def image_pixels(image: Image.Image) -> list[tuple[int, int, int, int]]:
+    """Support both current Pillow and versions before get_flattened_data."""
+    getter = getattr(image, "get_flattened_data", image.getdata)
+    return list(getter())
 
 
 def resolve_target(value: str) -> list[Path]:
@@ -49,7 +56,7 @@ def process_png(path: Path, dry_run: bool) -> str:
             if key in source.info
         }
 
-    pixels = list(before.get_flattened_data())
+    pixels = image_pixels(before)
     if any(0 < pixel[3] < 255 for pixel in pixels):
         return "already-translucent"
     # Prefer the last opaque pixel so a common opaque top-left corner is not
@@ -84,16 +91,25 @@ def process_png(path: Path, dry_run: bool) -> str:
         changed = [
             index
             for index, (old, new) in enumerate(
-                zip(before.get_flattened_data(), check.get_flattened_data())
+                zip(image_pixels(before), image_pixels(check))
             )
             if old != new
         ]
         expected = original_pixel
-        actual = list(check.get_flattened_data())[selected]
+        actual = image_pixels(check)[selected]
         if changed != [selected] or expected[:3] != actual[:3] or expected[3] != 255 or actual[3] != 254:
             raise RuntimeError(f"verification failed for {path}")
 
-        os.replace(temp_path, path)
+        try:
+            os.replace(temp_path, path)
+        except PermissionError:
+            # Some Windows live-pack setups reject replacing a watched PNG.
+            # The temporary image has already passed pixel verification, so
+            # fall back to a byte copy and verify the final file as well.
+            shutil.copyfile(temp_path, path)
+            if path.read_bytes() != temp_path.read_bytes():
+                raise RuntimeError(f"final copy verification failed for {path}")
+            temp_path.unlink()
         temp_path = None
         return "changed"
     finally:

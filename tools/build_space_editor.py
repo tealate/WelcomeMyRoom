@@ -7,22 +7,30 @@ opened or modified by the build.
 from __future__ import annotations
 
 import json
+import base64
+import hashlib
 from pathlib import Path
+import re
 import shutil
 import sys
 import zipfile
+
+from editor_block_config import EditorBlockConfigError, blockstate_relative_path, load_editor_block_config, resource_path
 
 ROOT = Path(__file__).resolve().parents[1]
 DP = ROOT / "space_editor_datapack"
 RP = ROOT / "space_editor_resources"
 F = DP / "data/editor/function"
+try:
+    BLOCK_CONFIG = load_editor_block_config()
+except EditorBlockConfigError as error:
+    raise SystemExit(f"Error: {error}") from None
+DISPLAY_BLOCKS = BLOCK_CONFIG["displayBlocks"]
 PALETTES = {
-    "stone": ("stone", "blue_terracotta", "stone"),
-    "dirt": ("dirt", "brown_terracotta", "dirt"),
-    "oak": ("oak_planks", "orange_terracotta", "oak_planks"),
-    "bricks": ("bricks", "red_terracotta", "bricks"),
-    "quartz": ("quartz_block", "white_terracotta", "quartz_block_side"),
+    name: (palette["normalBlock"], palette["carrierBlock"], palette["sourceTexture"])
+    for name, palette in BLOCK_CONFIG["maskablePalettes"].items()
 }
+MANIFEST = ROOT / "space_editor_generated_manifest.json"
 
 
 def write(path: Path, value: str):
@@ -61,12 +69,15 @@ def guard(selection=False):
 
 
 def main():
+    desired_blockstates = managed_blockstates()
+    _validate_blockstate_destinations(ROOT, desired_blockstates, allow_original_capture=True)
+    _validate_blockstate_destinations(RP, desired_blockstates, allow_original_capture=False)
     js(DP / "pack.mcmeta", {"pack": {"description": "Space Editor 1.0 | Java 26.1", "min_format": [101, 1], "max_format": [101, 1]}})
     js(RP / "pack.mcmeta", {"pack": {"description": "Space Editor 1.0 | Mask + Selection", "min_format": 84, "max_format": 84}})
     js(DP / "data/minecraft/tags/function/load.json", {"values": ["editor:load"]})
     js(DP / "data/minecraft/tags/function/tick.json", {"values": ["editor:tick"]})
     js(DP / "data/editor/tags/block/ray_pass.json", {"values": ["minecraft:air", "minecraft:cave_air", "minecraft:void_air", "minecraft:water", "minecraft:light", "minecraft:structure_void"]})
-    palette = {name: {"normal": "minecraft:" + normal, "maskable": "minecraft:" + masked} for name, (normal, masked, _) in PALETTES.items()}
+    palette = {name: {"normal": normal, "maskable": masked} for name, (normal, masked, _) in PALETTES.items()}
     palette["air"] = {"normal": "minecraft:air", "maskable": "minecraft:air"}
     fn("load", [
         "scoreboard objectives add se dummy", "scoreboard objectives add se.use minecraft.used:minecraft.carrot_on_a_stick",
@@ -206,7 +217,7 @@ def main():
         'execute unless data storage editor:data selection.valid run return 0',
         'execute if data storage editor:data {guides:0b} run return 0',
         'function editor:internal/selection/spawn with storage editor:data selection'])
-    fn("internal/selection/spawn", ['$execute in $(dim) positioned $(x1) $(y1) $(z1) align xyz run summon minecraft:block_display ~ ~ ~ {Tags:["editor.selection"],block_state:{Name:"minecraft:magenta_glazed_terracotta"},transformation:{translation:[-0.003f,-0.003f,-0.003f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:64f,height:64f}',
+    fn("internal/selection/spawn", [f'$execute in $(dim) positioned $(x1) $(y1) $(z1) align xyz run summon minecraft:block_display ~ ~ ~ {{Tags:["editor.selection"],block_state:{{Name:"{DISPLAY_BLOCKS["selection"]}"}},transformation:{{translation:[-0.003f,-0.003f,-0.003f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]}},brightness:{{block:15,sky:15}},view_range:2f,width:64f,height:64f}}',
         '$execute in $(dim) run scoreboard players operation @e[tag=editor.selection] se.id = #preview_version se'])
     fn("internal/preview_sync", ['scoreboard players set #clock se 0',
         *[f'execute in minecraft:{d} as @e[tag=editor.selection] unless score @s se.id = #preview_version se run kill @s' for d in ("overworld", "the_nether", "the_end")],
@@ -432,11 +443,11 @@ def main():
         '$execute if data storage editor:runtime work{mode:"outline"} run return run execute in $(dim) run fill $(x1) $(y1) $(z1) $(x2) $(y2) $(z2) $(block) outline',
         '$execute in $(dim) run fill $(x1) $(y1) $(z1) $(x2) $(y2) $(z2) $(block) strict'])
     fn("internal/render/sweep", ['$execute in $(dim) run kill @e[tag=editor.object,scores={se.id=$(id)}]'])
-    for typ, block in (("mask", "waxed_oxidized_cut_copper"), ("teleport", "lime_glazed_terracotta")):
+    for typ in ("mask", "teleport"):
         body = ['function editor:internal/render/sweep with storage editor:runtime work']
         if typ == "mask":
-            body += ['$execute in $(dim) positioned 0.0 0.0 0.0 run summon minecraft:block_display ~$(px) ~$(py) ~$(pz) {Tags:["editor.object","editor.mask","editor.new"],block_state:{Name:"minecraft:waxed_oxidized_cut_copper"},transformation:{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},view_range:4f,width:128f,height:128f}']
-        body += ['$execute in $(dim) positioned 0.0 0.0 0.0 run summon minecraft:block_display ~$(px) ~$(py) ~$(pz) {Tags:["editor.object","editor.guide","editor.new"],block_state:{Name:"minecraft:lime_glazed_terracotta"},transformation:{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:128f,height:128f}',
+            body += ['$execute in $(dim) positioned 0.0 0.0 0.0 run summon minecraft:block_display ~$(px) ~$(py) ~$(pz) {Tags:["editor.object","editor.mask","editor.new"],block_state:{Name:"' + DISPLAY_BLOCKS["maskBody"] + '"},transformation:{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},view_range:4f,width:128f,height:128f}']
+        body += ['$execute in $(dim) positioned 0.0 0.0 0.0 run summon minecraft:block_display ~$(px) ~$(py) ~$(pz) {Tags:["editor.object","editor.guide","editor.new"],block_state:{Name:"' + DISPLAY_BLOCKS["guide"] + '"},transformation:{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:128f,height:128f}',
             '$execute in $(dim) run scoreboard players set @e[tag=editor.new] se.id $(id)',
             '$execute in $(dim) run scoreboard players operation @e[tag=editor.new] se.gen = #epoch se.gen',
             '$execute in $(dim) if data storage editor:data {guides:0b} as @e[tag=editor.new,tag=editor.guide] run data merge entity @s {view_range:0f}',
@@ -504,23 +515,141 @@ def main():
     print(f"Generated {len(list(F.rglob('*.mcfunction')))} mcfunctions; datapack: {DP}")
 
 
+def managed_blockstates() -> dict[Path, str]:
+    managed = {
+        blockstate_relative_path(DISPLAY_BLOCKS["maskBody"]): "editor:block/mask_body",
+        blockstate_relative_path(DISPLAY_BLOCKS["selection"]): "editor:block/selection",
+        blockstate_relative_path(DISPLAY_BLOCKS["guide"]): "editor:block/guide",
+    }
+    managed.update({
+        blockstate_relative_path(carrier): f"editor:block/{name}_maskable"
+        for name, (_, carrier, _) in PALETTES.items()
+    })
+    return managed
+
+
+def _read_generated_manifest() -> dict[str, dict[str, str | None]]:
+    if not MANIFEST.exists():
+        return {}
+    value = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("schemaVersion") not in (1, 2) or not isinstance(value.get("managedBlockstates"), dict):
+        raise ValueError(f"Invalid generated blockstate manifest: {MANIFEST}")
+    result: dict[str, dict[str, str | None]] = {}
+    for relative, entry in value["managedBlockstates"].items():
+        parts = Path(relative).parts
+        if len(parts) < 4 or parts[0] != "assets" or parts[2] != "blockstates" or Path(relative).suffix != ".json" or ".." in parts:
+            raise ValueError(f"Unsafe path in generated blockstate manifest: {relative}")
+        if value["schemaVersion"] == 1:
+            entry = {"generatedHash": entry, "originalBase64": None}
+        if not isinstance(entry, dict) or set(entry) != {"generatedHash", "originalBase64"}:
+            raise ValueError(f"Invalid entry in generated blockstate manifest: {relative}")
+        digest = entry["generatedHash"]
+        original = entry["originalBase64"]
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError(f"Invalid hash in generated blockstate manifest: {relative}")
+        if original is not None:
+            if not isinstance(original, str):
+                raise ValueError(f"Invalid original content in generated blockstate manifest: {relative}")
+            try:
+                base64.b64decode(original, validate=True)
+            except ValueError as exc:
+                raise ValueError(f"Invalid original content in generated blockstate manifest: {relative}") from exc
+        result[relative] = {"generatedHash": digest, "originalBase64": original}
+    return result
+
+
+def _remove_stale_blockstates(root: Path, desired: set[str], *, restore_original: bool) -> int:
+    removed = 0
+    for relative, entry in _read_generated_manifest().items():
+        if relative in desired:
+            continue
+        target = root / relative
+        if not target.exists():
+            original = entry["originalBase64"] if restore_original else None
+            if original is not None:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(base64.b64decode(original, validate=True))
+                removed += 1
+            continue
+        actual_hash = hashlib.sha256(target.read_bytes()).hexdigest()
+        if actual_hash != entry["generatedHash"]:
+            raise RuntimeError(f"Refusing to remove modified managed blockstate: {target}")
+        original = entry["originalBase64"] if restore_original else None
+        if original is None:
+            target.unlink()
+        else:
+            target.write_bytes(base64.b64decode(original, validate=True))
+        removed += 1
+    return removed
+
+
+def _blockstate_bytes(model: str) -> bytes:
+    value = {"variants": {"": {"model": model}}}
+    return (json.dumps(value, ensure_ascii=False, indent=2).strip() + "\n").encode("utf-8")
+
+
+def _validate_blockstate_destinations(root: Path, desired: dict[Path, str], *, allow_original_capture: bool) -> None:
+    previously_managed = _read_generated_manifest()
+    for relative, model in desired.items():
+        target = root / relative
+        if not target.exists():
+            continue
+        current = target.read_bytes()
+        expected = _blockstate_bytes(model)
+        if current == expected:
+            continue
+        name = relative.as_posix()
+        old_entry = previously_managed.get(name)
+        if old_entry is None:
+            if allow_original_capture:
+                continue
+            raise RuntimeError(f"Refusing to overwrite unmanaged blockstate: {target}")
+        if hashlib.sha256(current).hexdigest() != old_entry["generatedHash"]:
+            raise RuntimeError(f"Refusing to overwrite modified managed blockstate: {target}")
+
+
+def build_block_assignments() -> None:
+    desired = managed_blockstates()
+    # Check the active pack first so a conflicting new assignment cannot leave
+    # the generated source half-switched before live synchronization fails.
+    _validate_blockstate_destinations(ROOT, desired, allow_original_capture=True)
+    _validate_blockstate_destinations(RP, desired, allow_original_capture=False)
+    _remove_stale_blockstates(RP, {path.as_posix() for path in desired}, restore_original=False)
+    for relative, model in desired.items():
+        js(RP / relative, {"variants": {"": {"model": model}}})
+
+
 def sync_live_resources():
     """Update only this tool's declared assets in the active testpack.
 
     The datapack source is linked from the world's datapacks folder; it needs
     no archive or copy step. Keep the original vanilla texture files intact.
     """
-    files = []
-    for name, (_, block, _) in PALETTES.items():
-        files += [f"assets/editor/textures/block/{name}_maskable.png",
-                  f"assets/editor/models/block/{name}_maskable.json",
-                  f"assets/minecraft/blockstates/{block}.json"]
-    for name, block in (("mask_body", "waxed_oxidized_cut_copper"),
-                        ("selection", "magenta_glazed_terracotta"),
-                        ("guide", "lime_glazed_terracotta")):
-        files += [f"assets/editor/textures/block/{name}.png",
-                  f"assets/editor/models/block/{name}.json",
-                  f"assets/minecraft/blockstates/{block}.json"]
+    desired_blockstates = managed_blockstates()
+    desired_names = {path.as_posix() for path in desired_blockstates}
+    _validate_blockstate_destinations(ROOT, desired_blockstates, allow_original_capture=True)
+    previous = _read_generated_manifest()
+    original_by_name: dict[str, str | None] = {}
+    for relative, model in desired_blockstates.items():
+        name = relative.as_posix()
+        if name in previous:
+            original_by_name[name] = previous[name]["originalBase64"]
+            continue
+        target = ROOT / relative
+        expected = _blockstate_bytes(model)
+        original_by_name[name] = (
+            base64.b64encode(target.read_bytes()).decode("ascii")
+            if target.exists() and target.read_bytes() != expected else None
+        )
+    removed = _remove_stale_blockstates(ROOT, desired_names, restore_original=True)
+    files: list[Path] = []
+    for name in PALETTES:
+        files += [Path(f"assets/editor/textures/block/{name}_maskable.png"),
+                  Path(f"assets/editor/models/block/{name}_maskable.json")]
+    for name in ("mask_body", "selection", "guide"):
+        files += [Path(f"assets/editor/textures/block/{name}.png"),
+                  Path(f"assets/editor/models/block/{name}.json")]
+    files += list(desired_blockstates)
     for name in files:
         source, destination = RP / name, ROOT / name
         if source.suffix == ".json":
@@ -530,7 +659,18 @@ def sync_live_resources():
             shutil.copyfile(source, destination)
         if source.read_bytes() != destination.read_bytes():
             raise RuntimeError(f"Live asset verification failed: {name}")
-    print(f"Live resource pack: {len(files)} assets synchronized to {ROOT}")
+    manifest = {
+        "schemaVersion": 2,
+        "managedBlockstates": {
+            relative: {
+                "generatedHash": hashlib.sha256((RP / relative).read_bytes()).hexdigest(),
+                "originalBase64": original_by_name[relative],
+            }
+            for relative in sorted(desired_names)
+        },
+    }
+    js(MANIFEST, manifest)
+    print(f"Live resource pack: {len(files)} assets synchronized to {ROOT}; stale blockstates removed={removed}")
 
 
 def build_preview_resources():
@@ -571,15 +711,14 @@ def build_preview_resources():
 def build_resources():
     from PIL import Image
     from mark_textures_translucent import process_png
-    for name, (_, block, tex) in PALETTES.items():
+    for name, (_, _, tex) in PALETTES.items():
         dest = RP / f"assets/editor/textures/block/{name}_maskable.png"
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ROOT / f"assets/minecraft/textures/block/{tex}.png", dest)
+        shutil.copyfile(resource_path(ROOT, tex, "textures", ".png"), dest)
         print(f"{process_png(dest, False)}: {dest.relative_to(ROOT)}")
         if process_png(dest, True) != "already-translucent":
             raise RuntimeError("Translucency verification failed")
         js(RP / f"assets/editor/models/block/{name}_maskable.json", {"parent": "minecraft:block/cube_all", "textures": {"all": f"editor:block/{name}_maskable"}})
-        js(RP / f"assets/minecraft/blockstates/{block}.json", {"variants": {"": {"model": f"editor:block/{name}_maskable"}}})
     # These are programmatic rendering primitives, not illustrated textures.
     # A mask must have alpha=1 everywhere; preview lines use only 0 and 255.
     dest = RP / "assets/editor/textures/block/mask_body.png"
@@ -587,9 +726,11 @@ def build_resources():
     Image.new("RGBA", (32, 32), (255, 255, 255, 1)).save(dest)
     js(RP / "assets/editor/models/block/mask_body.json", {"textures": {"particle": "editor:block/mask_body", "all": "editor:block/mask_body"}, "elements": [{"from": [0, 0, 0], "to": [16, 16, 16], "shade": False, "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]} for face in ("north", "south", "east", "west", "up", "down")}}]})
     build_preview_resources()
-    for block, model in (("waxed_oxidized_cut_copper", "mask_body"), ("magenta_glazed_terracotta", "selection"), ("lime_glazed_terracotta", "guide")):
-        js(RP / f"assets/minecraft/blockstates/{block}.json", {"variants": {"": {"model": f"editor:block/{model}"}}})
+    build_block_assignments()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (EditorBlockConfigError, OSError, RuntimeError, ValueError) as error:
+        raise SystemExit(f"Error: {error}") from None

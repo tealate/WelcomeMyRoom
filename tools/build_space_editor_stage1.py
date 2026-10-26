@@ -9,9 +9,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from editor_block_config import EditorBlockConfigError, load_editor_block_config
+
 ROOT = Path(__file__).resolve().parents[1]
 DP = ROOT / "space_editor_datapack"
 F = DP / "data/space_editor/function"
+try:
+    DISPLAY_BLOCKS = load_editor_block_config()["displayBlocks"]
+except EditorBlockConfigError as error:
+    raise SystemExit(f"Error: {error}") from None
 
 
 def write(path: Path, text: str) -> None:
@@ -327,7 +333,7 @@ def main() -> None:
         ]
     fn("preview/prepare", prepare)
     fn("preview/spawn", [
-        '$execute in $(dimension) positioned $(x1) $(y1) $(z1) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.region","space_editor.new"],block_state:{Name:"minecraft:magenta_glazed_terracotta"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:3f,width:64f,height:64f}',
+        '$execute in $(dimension) positioned $(x1) $(y1) $(z1) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.region","space_editor.new"],block_state:{Name:"' + DISPLAY_BLOCKS["selection"] + '"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:3f,width:64f,height:64f}',
         '$execute in $(dimension) positioned $(cx) $(cy) $(cz) run summon minecraft:text_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.label","space_editor.new"],text:\'{"text":"$(idText)\\n位置: ($(x1), $(y1), $(z1))\\nサイズ: $(sx) × $(sy) × $(sz)","color":"white"}\',billboard:"center",see_through:1b,shadow:1b,background:1073741824,alignment:"center",view_range:3f,width:64f,height:64f}',
         '$execute in $(dimension) run scoreboard players set @e[tag=space_editor.new] se.id $(id)',
         '$execute in $(dimension) run tag @e[tag=space_editor.new] remove space_editor.new',
@@ -338,12 +344,12 @@ def main() -> None:
     ])
     fn("preview/spawn_point", [
         *dimensions("kill @e[tag=space_editor.point]"),
-        '$execute in $(dimension) positioned $(ax) $(ay) $(az) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.point"],block_state:{Name:"minecraft:lime_glazed_terracotta"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}',
+        '$execute in $(dimension) positioned $(ax) $(ay) $(az) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.point"],block_state:{Name:"' + DISPLAY_BLOCKS["guide"] + '"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}',
     ])
     fn("preview/selection_candidate", [
-        '$execute in $(dimension) positioned $(x) $(y) $(z) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.selection_candidate"],block_state:{Name:"minecraft:orange_glazed_terracotta"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}',
+        '$execute in $(dimension) positioned $(x) $(y) $(z) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.selection_candidate"],block_state:{Name:"' + DISPLAY_BLOCKS["selectionCandidate"] + '"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}',
     ])
-    fn("preview/highlight", ['$execute in $(dimension) as @e[tag=space_editor.region,scores={se.id=$(id)}] run data merge entity @s {block_state:{Name:"minecraft:lime_glazed_terracotta"}}'])
+    fn("preview/highlight", ['$execute in $(dimension) as @e[tag=space_editor.region,scores={se.id=$(id)}] run data merge entity @s {block_state:{Name:"' + DISPLAY_BLOCKS["guide"] + '"}}'])
 
     # Ray-march through Region AABBs. The first sample hit wins; list order is
     # the deterministic tie breaker for equal hit distances.

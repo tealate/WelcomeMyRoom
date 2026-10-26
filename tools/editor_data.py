@@ -15,6 +15,8 @@ from pathlib import Path
 import struct
 import zipfile
 
+from editor_block_config import load_editor_block_config
+
 
 class NBTReader:
     def __init__(self, raw: bytes):
@@ -95,14 +97,13 @@ def validate(doc):
     if not isinstance(objects, list) or len(objects) > 512:
         raise ValueError("objects must be a list of at most 512 entries")
     palettes = doc.get("palettes")
+    config_path = Path(__file__).resolve().parents[1] / "space_editor_blocks.json"
+    config = load_editor_block_config(config_path, check_textures=False)
     expected = {
-        "stone": {"normal":"minecraft:stone","maskable":"minecraft:blue_terracotta"},
-        "dirt": {"normal":"minecraft:dirt","maskable":"minecraft:brown_terracotta"},
-        "oak": {"normal":"minecraft:oak_planks","maskable":"minecraft:orange_terracotta"},
-        "bricks": {"normal":"minecraft:bricks","maskable":"minecraft:red_terracotta"},
-        "quartz": {"normal":"minecraft:quartz_block","maskable":"minecraft:white_terracotta"},
-        "air": {"normal":"minecraft:air","maskable":"minecraft:air"},
+        name: {"normal": value["normalBlock"], "maskable": value["carrierBlock"]}
+        for name, value in config["maskablePalettes"].items()
     }
+    expected["air"] = {"normal":"minecraft:air","maskable":"minecraft:air"}
     if palettes != expected:
         raise ValueError("Palette mapping must match the bundled resource pack")
     ids = set()

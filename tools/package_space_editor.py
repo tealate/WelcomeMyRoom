@@ -7,7 +7,8 @@ import shutil
 import zipfile
 from PIL import Image
 from build_space_editor import ROOT, DP, RP, PALETTES
-from mark_textures_translucent import process_png
+from editor_block_config import resource_path
+from mark_textures_translucent import image_pixels, process_png
 
 
 def main():
@@ -25,12 +26,12 @@ def main():
     checks.append(f"Parsed {len(json_files)} JSON/mcmeta files")
     png_results=[]
     for name,(_,_,source_name) in PALETTES.items():
-        source=ROOT/f"assets/minecraft/textures/block/{source_name}.png"
+        source=resource_path(ROOT,source_name,"textures",".png")
         dest=RP/f"assets/editor/textures/block/{name}_maskable.png"
         with Image.open(source) as im:
-            before=list(im.convert("RGBA").get_flattened_data())
+            before=image_pixels(im.convert("RGBA"))
         with Image.open(dest) as im:
-            after=list(im.convert("RGBA").get_flattened_data())
+            after=image_pixels(im.convert("RGBA"))
         assert len(before)==len(after)
         changed=[i for i,(a,b) in enumerate(zip(before,after)) if a!=b]
         assert all(a[:3]==b[:3] for a,b in zip(before,after)), dest
@@ -48,7 +49,7 @@ def main():
     for name in ("mask_body","selection","guide"):
         p=RP/f"assets/editor/textures/block/{name}.png"
         with Image.open(p) as im:
-            alphas={pixel[3] for pixel in im.convert("RGBA").get_flattened_data()}
+            alphas={pixel[3] for pixel in image_pixels(im.convert("RGBA"))}
         assert alphas==({1} if name=="mask_body" else {0,255}), (p,alphas)
         png_results.append((p.relative_to(ROOT).as_posix(),"新規の描画用画像。全画素α1" if name=="mask_body" else "新規の線表示画像。α0/255のみ"))
     checks.append("5 maskable textures: exact RGB/pixel checks and no-op dry-run passed")
@@ -87,6 +88,8 @@ def main():
     (out/"tools").mkdir(exist_ok=True)
     for name in ("editor_data.py","Export-Level.ps1","Export-Level.cmd"):
         shutil.copyfile(ROOT/"tools"/name,out/"tools"/name)
+    shutil.copyfile(ROOT/"tools/editor_block_config.py",out/"tools/editor_block_config.py")
+    shutil.copyfile(ROOT/"space_editor_blocks.json",out/"space_editor_blocks.json")
     # Windows PowerShell 5 needs a BOM to recognize Japanese UTF-8 scripts.
     ps=out/"tools/Export-Level.ps1"
     ps.write_text(ps.read_text(encoding="utf-8-sig"),encoding="utf-8-sig")
