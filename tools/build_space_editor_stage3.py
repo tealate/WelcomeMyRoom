@@ -582,7 +582,7 @@ def main() -> None:
     fn("transform/apply_stairs", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[facing=$(facing),half=$(half),shape=$(shape),waterlogged=$(waterlogged)] strict'])
     fn("transform/apply_slab", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[type=$(type),waterlogged=$(waterlogged)] strict'])
     fn("transform/apply_connections", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[north=$(north),east=$(east),south=$(south),west=$(west),waterlogged=$(waterlogged)] strict'])
-    fn("transform/clear_target", ['$execute in $(targetDimension) run setblock $(x) $(y) $(z) minecraft:air'])
+    fn("transform/clear_target", ['$execute in $(targetDimension) run setblock $(x) $(y) $(z) minecraft:air strict'])
     fn("transform/apply_wall", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[north=$(north),east=$(east),south=$(south),west=$(west),up=$(up),waterlogged=$(waterlogged)] strict'])
     fn("transform/apply_axis", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[axis=$(axis)] strict'])
     fn("transform/apply_axis_waterlogged", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[axis=$(axis),waterlogged=$(waterlogged)] strict'])

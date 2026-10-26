@@ -17,12 +17,13 @@ public class SpaceEditorStage3GameTest {
     static CommandSourceStack source;
     static net.minecraft.server.level.ServerPlayer player;
     static boolean finished;
-    static int step, waitTicks, pasteIndex;
+    static int step, waitTicks, pasteIndex, stairPasteIndex;
     static final int AX=20000064, AY=-63, AZ=20000000;
     static final int TY=80;
     static final int[] ROT={0,90,180,270,0,90,180,270};
     static final int[] FLIP={0,0,0,0,1,1,1,1};
     static final String[] CUBE={"minecraft:stone","minecraft:dirt","minecraft:oak_planks","minecraft:bricks","minecraft:gold_block","minecraft:diamond_block","minecraft:emerald_block","minecraft:redstone_block"};
+    static final StairsShape[] STAIR_SHAPES={StairsShape.STRAIGHT,StairsShape.INNER_LEFT,StairsShape.INNER_RIGHT,StairsShape.OUTER_LEFT,StairsShape.OUTER_RIGHT};
     static final Identifier DOCUMENT=Identifier.parse("space_editor:document");
     static final Identifier RUNTIME=Identifier.parse("space_editor:runtime");
 
@@ -65,8 +66,24 @@ public class SpaceEditorStage3GameTest {
         check(job.getIntOr("rotation",-1)==rotation && job.getBooleanOr("flipY",false)==(flip==1),"job persisted transform");
     }
 
+    static void verifyStairShapes(int index){
+        int ox=70+index*7, oz=0, rotation=ROT[index];
+        Direction expectedFacing=new Direction[]{Direction.NORTH,Direction.EAST,Direction.SOUTH,Direction.WEST}[index];
+        for(int x=0;x<STAIR_SHAPES.length;x++){
+            int tx=x,tz=0;
+            if(rotation==90){tx=0;tz=x;}
+            else if(rotation==180){tx=STAIR_SHAPES.length-1-x;}
+            else if(rotation==270){tx=0;tz=STAIR_SHAPES.length-1-x;}
+            var stair=helper.getLevel().getBlockState(new BlockPos(ox+tx,TY,oz+tz));
+            check(stair.is(Blocks.OAK_STAIRS)
+                    && stair.getValue(BlockStateProperties.HORIZONTAL_FACING)==expectedFacing
+                    && stair.getValue(BlockStateProperties.STAIRS_SHAPE)==STAIR_SHAPES[x],
+                "stair shape preserved rot="+rotation+" sourceIndex="+x+" actual="+stair);
+        }
+    }
+
     static void setup(GameTestHelper h){
-        helper=h; source=h.getLevel().getServer().createCommandSourceStack(); finished=false; step=0; waitTicks=0; pasteIndex=0;
+        helper=h; source=h.getLevel().getServer().createCommandSourceStack(); finished=false; step=0; waitTicks=0; pasteIndex=0; stairPasteIndex=0;
         cmd("function space_editor:load");
         cmd("data modify storage space_editor:document templates set value []");
         cmd("data modify storage space_editor:document actions set value []");
@@ -81,12 +98,15 @@ public class SpaceEditorStage3GameTest {
         cmd("setblock "+(AX+97)+" "+AY+" "+AZ+" minecraft:stone_slab[type=bottom,waterlogged=false] strict");
         cmd("setblock "+(AX+128)+" "+AY+" "+AZ+" minecraft:chest[facing=north]");
         cmd("fill "+(AX+160)+" "+AY+" "+AZ+" "+(AX+164)+" "+(AY+2)+" "+(AZ+4)+" minecraft:stone");
+        for(int x=0;x<STAIR_SHAPES.length;x++)
+            cmd("setblock "+(AX+192+x)+" "+AY+" "+AZ+" minecraft:oak_stairs[facing=north,half=bottom,shape="+STAIR_SHAPES[x].getSerializedName()+",waterlogged=false] strict");
         cmd("data modify storage space_editor:document templates set value ["+
             "{id:1,version:1,archive:{dimension:\"minecraft:overworld\",x:"+AX+",y:"+AY+",z:"+AZ+"},size:[I;2,2,2]},"+
             "{id:2,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+64)+",y:"+AY+",z:"+AZ+"},size:[I;3,1,1]},"+
             "{id:3,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+96)+",y:"+AY+",z:"+AZ+"},size:[I;2,1,1]},"+
             "{id:4,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+128)+",y:"+AY+",z:"+AZ+"},size:[I;1,1,1]},"+
-            "{id:5,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+160)+",y:"+AY+",z:"+AZ+"},size:[I;5,3,5]}]");
+            "{id:5,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+160)+",y:"+AY+",z:"+AZ+"},size:[I;5,3,5]},"+
+            "{id:6,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+192)+",y:"+AY+",z:"+AZ+"},size:[I;5,1,1]}]");
         player=h.makeMockServerPlayerInLevel(); player.setNoGravity(true); player.setPos(0.5,TY+3,0.5);
         startPaste(1,ROT[0],FLIP[0],0,TY,0);
     }
@@ -164,9 +184,19 @@ public class SpaceEditorStage3GameTest {
                         pcmd("function space_editor:paste_mode/apply");
                         check(score("se.flip")==1,"shift-up toggled FlipY");
                         check(document().getListOrEmpty("actions").size()==12,"successful and partially skipped pastes persisted actions");
-                        System.out.println("SPACE_EDITOR_STAGE3_RUNTIME_PASS: 8 coordinate states, reload-resumed cursor, stair/slab/fence states, unsupported skip warning, shift controls");
-                        finished=true;h.succeed();
+                        startPaste(6,ROT[stairPasteIndex],0,70+stairPasteIndex*7,TY,0); step=5; waitTicks=0;
                     }
+                } else if(step==5){
+                    tickJob(); waitTicks++;
+                    if(!jobState().equals("running")){
+                        verifyStairShapes(stairPasteIndex); stairPasteIndex++; waitTicks=0;
+                        if(stairPasteIndex<4) startPaste(6,ROT[stairPasteIndex],0,70+stairPasteIndex*7,TY,0);
+                        else {
+                            check(document().getListOrEmpty("actions").size()==16,"stair shape pastes persisted actions");
+                            System.out.println("SPACE_EDITOR_STAGE3_RUNTIME_PASS: 8 coordinate states, reload-resumed cursor, all 5 stair shapes at 0/90/180/270 degrees, slab/fence states, unsupported skip warning, shift controls");
+                            finished=true;h.succeed();
+                        }
+                    } else if(waitTicks>20)throw new AssertionError("stair shape rotation timeout "+stairPasteIndex);
                 }
             }catch(Throwable ex){finished=true;ex.printStackTrace();h.fail(ex.getMessage());}
         });
