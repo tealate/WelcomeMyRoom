@@ -533,6 +533,41 @@ def sync_live_resources():
     print(f"Live resource pack: {len(files)} assets synchronized to {ROOT}")
 
 
+def build_preview_resources():
+    """Build the binary-alpha, double-sided selection preview assets."""
+    from PIL import Image
+    preview_styles = {
+        "selection": ((70, 220, 255, 255), 2),
+        "guide": ((240, 210, 50, 255), 1),
+    }
+    for name, (color, border) in preview_styles.items():
+        dest = RP / f"assets/editor/textures/block/{name}.png"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        im = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+        for y in range(32):
+            for x in range(32):
+                if x < border or x >= 32 - border or y < border or y >= 32 - border or x == y or x + y == 31:
+                    im.putpixel((x, y), color)
+        im.save(dest)
+        outer = {"from": [0, 0, 0], "to": [16, 16, 16], "shade": False,
+                 "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]} for face in ("north", "south", "east", "west", "up", "down")}}
+        elements = [outer]
+        # Six thin planes whose visible faces point toward the cube center.
+        # The 0.01 model-unit inset prevents overlap with the outward faces.
+        inner_planes = (
+            ([0, 0, 0], [16, 16, 0.01], "south"),
+            ([0, 0, 15.99], [16, 16, 16], "north"),
+            ([0, 0, 0], [0.01, 16, 16], "east"),
+            ([15.99, 0, 0], [16, 16, 16], "west"),
+            ([0, 0, 0], [16, 0.01, 16], "up"),
+            ([0, 15.99, 0], [16, 16, 16], "down"),
+        )
+        elements += [{"from": start, "to": end, "shade": False,
+                      "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]}}}
+                     for start, end, face in inner_planes]
+        js(RP / f"assets/editor/models/block/{name}.json", {"textures": {"particle": f"editor:block/{name}", "all": f"editor:block/{name}"}, "elements": elements})
+
+
 def build_resources():
     from PIL import Image
     from mark_textures_translucent import process_png
@@ -547,17 +582,11 @@ def build_resources():
         js(RP / f"assets/minecraft/blockstates/{block}.json", {"variants": {"": {"model": f"editor:block/{name}_maskable"}}})
     # These are programmatic rendering primitives, not illustrated textures.
     # A mask must have alpha=1 everywhere; preview lines use only 0 and 255.
-    for name, color in (("mask_body", (255, 255, 255, 1)), ("selection", (70, 220, 255, 255)), ("guide", (240, 210, 50, 255))):
-        dest = RP / f"assets/editor/textures/block/{name}.png"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        im = Image.new("RGBA", (32, 32), color if name == "mask_body" else (0, 0, 0, 0))
-        if name != "mask_body":
-            for y in range(32):
-                for x in range(32):
-                    if x in (0, 31) or y in (0, 31) or (x + y) % 16 == 0:
-                        im.putpixel((x, y), color)
-        im.save(dest)
-        js(RP / f"assets/editor/models/block/{name}.json", {"textures": {"particle": f"editor:block/{name}", "all": f"editor:block/{name}"}, "elements": [{"from": [0, 0, 0], "to": [16, 16, 16], "shade": False, "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]} for face in ("north", "south", "east", "west", "up", "down")}}]})
+    dest = RP / "assets/editor/textures/block/mask_body.png"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGBA", (32, 32), (255, 255, 255, 1)).save(dest)
+    js(RP / "assets/editor/models/block/mask_body.json", {"textures": {"particle": "editor:block/mask_body", "all": "editor:block/mask_body"}, "elements": [{"from": [0, 0, 0], "to": [16, 16, 16], "shade": False, "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]} for face in ("north", "south", "east", "west", "up", "down")}}]})
+    build_preview_resources()
     for block, model in (("waxed_oxidized_cut_copper", "mask_body"), ("magenta_glazed_terracotta", "selection"), ("lime_glazed_terracotta", "guide")):
         js(RP / f"assets/minecraft/blockstates/{block}.json", {"variants": {"": {"model": f"editor:block/{model}"}}})
 

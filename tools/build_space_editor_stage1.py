@@ -129,6 +129,7 @@ def main() -> None:
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}}] run function space_editor:input/region",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_all\"}}] run function space_editor:input/resize_all",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_face\"}}] run function space_editor:input/resize_face",
+        "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"move\"}}] run function space_editor:input/move",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"delete\"}}] run function space_editor:input/delete",
         "scoreboard players set @a[scores={se.use=1..}] se.use 0",
         "execute as @a[tag=space_editor.editing] at @s run function space_editor:internal/dimension_tick",
@@ -148,7 +149,8 @@ def main() -> None:
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"region\"}},minecraft:custom_name={text:\"範囲選択棒\",color:\"aqua\",italic:false},minecraft:lore=[{text:\"右クリック1回目=A / 2回目=B\",italic:false}] ]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_all\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"resize_all\"}},minecraft:custom_name={text:\"全体サイズ変更棒\",color:\"yellow\",italic:false},minecraft:lore=[{text:\"右クリック=拡大 / Shift+右クリック=縮小\",italic:false}] ]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_face\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"resize_face\"}},minecraft:custom_name={text:\"面伸縮棒\",color:\"gold\",italic:false},minecraft:lore=[{text:\"見ている1面を移動 / Shiftで逆方向\",italic:false}] ]",
-        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"delete\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"delete\"}},minecraft:custom_name={text:\"Region削除棒\",color:\"red\",italic:false},minecraft:lore=[{text:\"見ているRegionを右クリックで削除\",italic:false}] ]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"move\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"move\"}},minecraft:custom_name={text:\"範囲移動棒\",color:\"green\",italic:false},minecraft:lore=[{text:\"見ている面方向へ1ブロック / Shiftで逆方向\",italic:false}] ]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"delete\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"delete\"}},minecraft:custom_name={text:\"Region削除棒\",color:\"red\",italic:false},minecraft:lore=[{text:\"Regionを削除 / Pasteプレビューをキャンセル\",italic:false}] ]",
         "function space_editor:preview/resync",
         message("編集モード。範囲棒を2回右クリックしてRegionを作成します。"),
     ])
@@ -345,7 +347,7 @@ def main() -> None:
 
     # Ray-march through Region AABBs. The first sample hit wins; list order is
     # the deterministic tie breaker for equal hit distances.
-    for tool in ("resize_all", "resize_face"):
+    for tool in ("resize_all", "resize_face", "move"):
         fn(f"input/{tool}", [
             "scoreboard players set @s se.cd 5",
             f'data modify storage space_editor:runtime activeTool set value "{tool}"',
@@ -406,6 +408,7 @@ def main() -> None:
     fn("region/apply_hit", [
         "data modify storage space_editor:document selectedId set from storage space_editor:runtime hit.idText",
         "execute if data storage space_editor:runtime {activeTool:\"delete\"} run return run function space_editor:region/delete_selected",
+        "execute if data storage space_editor:runtime {activeTool:\"move\"} run return run function space_editor:region/move",
         "execute if data storage space_editor:runtime {activeTool:\"resize_all\"} run return run function space_editor:region/resize_all",
         "function space_editor:region/resize_face",
     ])
@@ -444,6 +447,24 @@ def main() -> None:
         ]
     face_lines += ["function space_editor:region/save_resize"]
     fn("region/resize_face", face_lines)
+    move_lines = [
+        "function space_editor:region/load_scores",
+        "scoreboard players operation #delta se.v = #1000 se.v",
+        "scoreboard players operation #delta se.v *= #direction se.v",
+    ]
+    for face_id, axis, _, side in face_defs:
+        op = "-=" if side == "min" else "+="
+        move_lines += [
+            f"execute if data storage space_editor:runtime {{hitFace:{face_id}}} run scoreboard players operation #{axis}1 se.v {op} #delta se.v",
+            f"execute if data storage space_editor:runtime {{hitFace:{face_id}}} run scoreboard players operation #{axis}2 se.v {op} #delta se.v",
+        ]
+    for axis in "xyz":
+        move_lines += [
+            f"scoreboard players operation #size{axis} se.v = #{axis}2 se.v",
+            f"scoreboard players operation #size{axis} se.v -= #{axis}1 se.v",
+        ]
+    move_lines += ["function space_editor:region/save_resize"]
+    fn("region/move", move_lines)
     save = []
     for i, axis in enumerate("xyz"):
         save += [
@@ -482,6 +503,7 @@ def main() -> None:
         message("開始: /function space_editor:start  プレイ: /function space_editor:play"),
         message("増減量: /function space_editor:set_step {amount:0.1}"),
         message("一時選択解除: /function space_editor:selection/clear  再同期: /function space_editor:resume"),
+        message("範囲移動棒: 見ている面方向へ1ブロック移動。Shiftで反対方向。"),
     ])
     legacy = DP / "data/editor/function"
     write(legacy / "start.mcfunction", "function space_editor:start")

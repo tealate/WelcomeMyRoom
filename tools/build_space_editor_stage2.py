@@ -72,6 +72,13 @@ def main() -> None:
         "execute if data storage space_editor:document job{state:\"complete\"} run function space_editor:job/notify_complete",
     ])
 
+    insert_before(F / "region/ray.mcfunction", "data modify storage space_editor:runtime candidates", [
+        "scoreboard players set #paste_hit se.v 0",
+        'execute if data storage space_editor:runtime pastePending if data storage space_editor:runtime {activeTool:"delete"} store result score #paste_hit se.v run function space_editor:paste/check_preview_hit with storage space_editor:runtime pastePending',
+        'execute if data storage space_editor:runtime pastePending if data storage space_editor:runtime {activeTool:"move"} store result score #paste_hit se.v run function space_editor:paste/check_preview_hit with storage space_editor:runtime pastePending',
+        "execute if score #paste_hit se.v matches 1 run return run function space_editor:paste/apply_preview_hit",
+    ])
+
     insert_before(F / "start.mcfunction", "function space_editor:preview/resync", [
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"copy\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"copy\"}},minecraft:custom_name={text:\"コピー棒\",color:\"green\",italic:false},minecraft:lore=[{text:\"Regionを見て右クリック: Template保存\",italic:false}]]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"paste\"}},minecraft:custom_name={text:\"ペースト棒\",color:\"light_purple\",italic:false},minecraft:lore=[{text:\"3ブロック先までの候補位置へTemplateを貼付\",italic:false}]]",
@@ -91,6 +98,7 @@ def main() -> None:
         "execute if data storage space_editor:runtime {activeTool:\"copy\"} run return run function space_editor:copy/start",
         "execute if data storage space_editor:runtime {activeTool:\"fill\"} run return run function space_editor:fill/offhand",
         "execute if data storage space_editor:runtime {activeTool:\"delete\"} run return run function space_editor:region/delete_selected",
+        "execute if data storage space_editor:runtime {activeTool:\"move\"} run return run function space_editor:region/move",
         "execute if data storage space_editor:runtime {activeTool:\"resize_all\"} run return run function space_editor:region/resize_all",
         "function space_editor:region/resize_face",
     ])
@@ -264,6 +272,52 @@ def main() -> None:
         "data remove storage space_editor:runtime pastePending",
         message("Pasteプレビューをキャンセルしました。", "yellow"),
     ])
+    preview_hit = ['$execute unless dimension $(targetDimension) run return 0']
+    for axis in "xyz":
+        preview_hit += [
+            f"execute store result score #{axis}1m se.v run data get storage space_editor:runtime pastePending.{axis} 1000",
+            f"execute store result score #s{axis}m se.v run data get storage space_editor:runtime pastePending.s{axis} 1000",
+            f"scoreboard players operation #{axis}2m se.v = #{axis}1m se.v",
+            f"scoreboard players operation #{axis}2m se.v += #s{axis}m se.v",
+            f"execute if score #p{axis} se.v < #{axis}1m se.v run return 0",
+            f"execute if score #p{axis} se.v >= #{axis}2m se.v run return 0",
+        ]
+    preview_hit += [
+        'data modify storage space_editor:runtime hit set value {kind:"paste_preview",x1m:0,x2m:0,y1m:0,y2m:0,z1m:0,z2m:0}',
+        *[f"execute store result storage space_editor:runtime hit.{axis}{edge}m int 1 run scoreboard players get #{axis}{edge}m se.v" for axis in "xyz" for edge in (1, 2)],
+        "function space_editor:region/face",
+        "return 1",
+    ]
+    fn("paste/check_preview_hit", preview_hit)
+    fn("paste/apply_preview_hit", [
+        'execute if data storage space_editor:runtime {activeTool:"delete"} run return run function space_editor:paste/cancel',
+        "function space_editor:paste/move_preview",
+    ])
+    move_preview = [
+        "scoreboard players set #direction se.v 1",
+        'execute if predicate {condition:"minecraft:entity_properties",entity:"this",predicate:{flags:{is_sneaking:true}}} run scoreboard players set #direction se.v -1',
+        *[f"execute store result score #{axis} se.v run data get storage space_editor:runtime pastePending.{axis} 1" for axis in "xyz"],
+    ]
+    for face_id, axis, _, side in ((0, "x", 0, "min"), (1, "x", 0, "max"), (2, "y", 1, "min"), (3, "y", 1, "max"), (4, "z", 2, "min"), (5, "z", 2, "max")):
+        op = "remove" if side == "min" else "add"
+        move_preview += [f"execute if data storage space_editor:runtime {{hitFace:{face_id}}} run scoreboard players {op} #{axis} se.v 1"]
+        if side == "min":
+            move_preview += [f"execute if data storage space_editor:runtime {{hitFace:{face_id}}} if score #direction se.v matches -1 run scoreboard players add #{axis} se.v 2"]
+        else:
+            move_preview += [f"execute if data storage space_editor:runtime {{hitFace:{face_id}}} if score #direction se.v matches -1 run scoreboard players remove #{axis} se.v 2"]
+    move_preview += [
+        "execute store result score #y2 se.v run data get storage space_editor:runtime pastePending.sy 1",
+        "scoreboard players operation #y2 se.v += #y se.v",
+        'execute if data storage space_editor:runtime pastePending{targetDimension:"minecraft:overworld"} unless score #y se.v matches -64..319 run return run ' + message("Overworldの高さ範囲を超えています。", "red"),
+        'execute if data storage space_editor:runtime pastePending{targetDimension:"minecraft:overworld"} unless score #y2 se.v matches -63..320 run return run ' + message("Overworldの高さ範囲を超えています。", "red"),
+        'execute unless data storage space_editor:runtime pastePending{targetDimension:"minecraft:overworld"} unless score #y se.v matches 0..255 run return run ' + message("Nether/Endの高さ範囲を超えています。", "red"),
+        'execute unless data storage space_editor:runtime pastePending{targetDimension:"minecraft:overworld"} unless score #y2 se.v matches 1..256 run return run ' + message("Nether/Endの高さ範囲を超えています。", "red"),
+        *[f"execute store result storage space_editor:runtime pastePending.{axis} int 1 run scoreboard players get #{axis} se.v" for axis in "xyz"],
+        "data remove storage space_editor:runtime hit",
+        "function space_editor:preview/resync",
+        message("Pasteプレビューを1ブロック移動しました。", "green"),
+    ]
+    fn("paste/move_preview", move_preview)
     fn("paste/confirm", [
         "data modify storage space_editor:runtime lookup.id set from storage space_editor:runtime pastePending.id",
         *[f"data modify storage space_editor:runtime lookup.owner{i} set from storage space_editor:runtime pastePending.owner{i}" for i in range(4)],

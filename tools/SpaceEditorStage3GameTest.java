@@ -82,6 +82,31 @@ public class SpaceEditorStage3GameTest {
         }
     }
 
+    static void verifyPreviewAndMoveTools(){
+        cmd("data modify storage space_editor:runtime pastePending set value {targetDimension:\"minecraft:overworld\",x:100,y:80,z:100,sx:2,sy:3,sz:4}");
+        cmd("scoreboard players set #px se.v 100000");
+        cmd("scoreboard players set #py se.v 81500");
+        cmd("scoreboard players set #pz se.v 102000");
+        cmd("execute store result storage space_editor:runtime testPasteHit int 1 run function space_editor:paste/check_preview_hit with storage space_editor:runtime pastePending");
+        check(runtime().getIntOr("testPasteHit",0)==1 && runtime().getIntOr("hitFace",-1)==0,"paste preview AABB hit and face detected");
+        cmd("data modify storage space_editor:runtime activeTool set value \"delete\"");
+        pcmd("function space_editor:paste/apply_preview_hit");
+        check(!runtime().contains("pastePending"),"delete tool cancelled pending paste preview");
+
+        cmd("data modify storage space_editor:runtime pastePending set value {targetDimension:\"minecraft:overworld\",x:100,y:80,z:100,sx:2,sy:3,sz:4}");
+        cmd("data modify storage space_editor:runtime activeTool set value \"move\"");
+        cmd("data modify storage space_editor:runtime hitFace set value 1");
+        pcmd("function space_editor:paste/apply_preview_hit");
+        check(runtime().getCompoundOrEmpty("pastePending").getIntOr("x",0)==101,"move tool shifted paste preview one block toward clicked face");
+
+        cmd("data modify storage space_editor:document regions set value [{id:99,idText:\"99\",dimension:\"minecraft:overworld\",min:[0.0d,80.0d,0.0d],maxExclusive:[2.0d,82.0d,2.0d],x1:0.0d,x2:2.0d,y1:80.0d,y2:82.0d,z1:0.0d,z2:2.0d,sx:2.0d,sy:2.0d,sz:2.0d,x1m:0,x2m:2000,y1m:80000,y2m:82000,z1m:0,z2m:2000,sxm:2000,sym:2000,szm:2000}]");
+        cmd("data modify storage space_editor:runtime hit set from storage space_editor:document regions[0]");
+        cmd("data modify storage space_editor:runtime hitFace set value 5");
+        pcmd("function space_editor:region/move");
+        var moved=document().getListOrEmpty("regions").getCompoundOrEmpty(0);
+        check(moved.getIntOr("z1m",-1)==1000 && moved.getIntOr("z2m",-1)==3000 && moved.getIntOr("szm",-1)==2000,"move tool shifted persisted region exactly one block without resizing");
+    }
+
     static void setup(GameTestHelper h){
         helper=h; source=h.getLevel().getServer().createCommandSourceStack(); finished=false; step=0; waitTicks=0; pasteIndex=0; stairPasteIndex=0;
         cmd("function space_editor:load");
@@ -193,7 +218,8 @@ public class SpaceEditorStage3GameTest {
                         if(stairPasteIndex<4) startPaste(6,ROT[stairPasteIndex],0,70+stairPasteIndex*7,TY,0);
                         else {
                             check(document().getListOrEmpty("actions").size()==16,"stair shape pastes persisted actions");
-                            System.out.println("SPACE_EDITOR_STAGE3_RUNTIME_PASS: 8 coordinate states, reload-resumed cursor, all 5 stair shapes at 0/90/180/270 degrees, slab/fence states, unsupported skip warning, shift controls");
+                            verifyPreviewAndMoveTools();
+                            System.out.println("SPACE_EDITOR_STAGE3_RUNTIME_PASS: 8 coordinate states, all stair shapes at 4 rotations, delete-cancelled paste preview, one-block preview/region move, reload-resumed cursor, unsupported skip warning, shift controls");
                             finished=true;h.succeed();
                         }
                     } else if(waitTicks>20)throw new AssertionError("stair shape rotation timeout "+stairPasteIndex);

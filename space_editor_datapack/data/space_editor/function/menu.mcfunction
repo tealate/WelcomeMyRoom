@@ -1,6 +1,7 @@
 tellraw @s {"text": "[Space Editor] 開始: /function space_editor:start  プレイ: /function space_editor:play", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] 増減量: /function space_editor:set_step {amount:0.1}", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] 一時選択解除: /function space_editor:selection/clear  再同期: /function space_editor:resume", "color": "aqua"}
+tellraw @s {"text": "[Space Editor] 範囲移動棒: 見ている面方向へ1ブロック移動。Shiftで反対方向。", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] Fill: Region選択→ブロックをメインハンド→/function space_editor:fill", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] Fill: Fill棒＋オフハンド素材 / Copy: コピー棒 / Paste: ペースト棒＋オフハンドTemplate", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] Fill/Paste棒は範囲棒と同じ3ブロック候補を使用。ブロックがなければ空中セルを選択します。", "color": "aqua"}
