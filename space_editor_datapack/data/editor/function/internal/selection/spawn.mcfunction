@@ -1,2 +1,0 @@
-$execute in $(dim) positioned $(x1) $(y1) $(z1) align xyz run summon minecraft:block_display ~ ~ ~ {Tags:["editor.selection"],block_state:{Name:"minecraft:magenta_glazed_terracotta"},transformation:{translation:[-0.003f,-0.003f,-0.003f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:64f,height:64f}
-$execute in $(dim) run scoreboard players operation @e[tag=editor.selection] se.id = #preview_version se

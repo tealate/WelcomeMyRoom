@@ -1,15 +1,11 @@
-"""Generate the stage-1 Space Editor datapack for Minecraft Java 26.1.
-
-This deliberately leaves the legacy editor namespace in place.  The function
-tags are switched to this implementation, so old saved data and functions are
-recoverable but inactive while the new storage contract is exercised.
-"""
+"""Generate the stage-1 Space Editor datapack for Minecraft Java 26.1."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
 from editor_block_config import EditorBlockConfigError, load_editor_block_config
+import build_space_editor_resources as resources
 
 ROOT = Path(__file__).resolve().parents[1]
 DP = ROOT / "space_editor_datapack"
@@ -43,6 +39,7 @@ def dimensions(command: str) -> list[str]:
 
 
 def main() -> None:
+    resources.main()
     js(DP / "data/minecraft/tags/function/load.json", {"values": ["space_editor:load"]})
     js(DP / "data/minecraft/tags/function/tick.json", {"values": ["space_editor:tick"]})
     js(DP / "data/space_editor/tags/block/ray_pass.json", {"values": [
@@ -505,18 +502,12 @@ def main() -> None:
     ])
     fn("region/delete_hit", ['$data remove storage space_editor:document regions[{id:$(id)}]'])
 
-    # Compatibility entry points keep the familiar start/play commands useful.
     fn("menu", [
         message("開始: /function space_editor:start  プレイ: /function space_editor:play"),
         message("増減量: /function space_editor:set_step {amount:0.1}"),
         message("一時選択解除: /function space_editor:selection/clear  再同期: /function space_editor:resume"),
         message("範囲移動棒: 見ている面方向へ1ブロック移動。Shiftで反対方向。"),
     ])
-    legacy = DP / "data/editor/function"
-    write(legacy / "start.mcfunction", "function space_editor:start")
-    write(legacy / "play.mcfunction", "function space_editor:play")
-    write(legacy / "menu.mcfunction", "function space_editor:menu")
-
     print(f"Generated stage-1 Space Editor: {len(list(F.rglob('*.mcfunction')))} functions")
 
 

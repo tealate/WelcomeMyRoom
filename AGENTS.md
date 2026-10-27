@@ -26,8 +26,21 @@
 - Current live mapping: this checkout's root `assets/` is the active `testpack`;
   `space_editor_datapack/` is referenced by a directory junction at
   `C:\Users\yoshida_kaito\AppData\Roaming\.minecraft\saves\新規ワールド (2)\datapacks\space_editor`.
-  Edit these sources directly. `tools/build_space_editor.py` also synchronizes
-  the editor's declared rendering assets into root `assets/`.
+  Edit these sources directly. The current stage generators call
+  `tools/build_space_editor_resources.py`, which synchronizes the declared
+  rendering assets into root `assets/`.
+
+## Space Editor namespaces and generation
+
+- Runtime functions and saved data use `space_editor:`. Do not restore the
+  removed `editor:` compatibility functions or `storage editor:data` workflow.
+- The `assets/editor/` resource namespace is still active: current block
+  displays reach its models through configured vanilla blockstate carriers.
+  Do not remove those assets merely because the namespace is named `editor`.
+- Generator dependency order is Stage 03 -> Stage 02 -> Stage 01. Stage 04 is
+  developed on top of Stage 03 and must keep using that chain.
+- `space_editor:document` is persistent world data. Generators may add fields
+  through migrations, but cleanup work must not delete or reset the document.
 
 ## Texture render-pass behavior
 
@@ -62,6 +75,11 @@
 ## Validation and reporting
 
 - Parse every edited JSON file before reporting completion.
+- When changing generated `mcfunction` behavior, edit the generator, regenerate
+  the live output, run `ValidateMinecraft`, and run the GameTest for the latest
+  affected Space Editor stage. A successful parse alone is not enough.
+- Keep stage-specific Java GameTest harnesses and PowerShell runners in
+  `tools/`; they are development checks, not runtime dependencies.
 - For PNG edits, rely on the script's save-before-replace pixel verification.
 - After texture processing, run the same command with `--dry-run`; the selected
   textures should report `already-translucent` and receive no further changes.
