@@ -63,6 +63,7 @@ def main() -> None:
         "execute unless data storage space_editor:document {schemaVersion:1} run return run " + message("未対応の保存形式です。データは変更していません。", "red", "@a"),
         "execute unless data storage space_editor:document settings.stepMilli run function space_editor:internal/migrate_step",
         "execute unless data storage space_editor:document settings{boundsVersion:3} run function space_editor:internal/migrate_bounds",
+        "execute unless data storage space_editor:document settings.regionsVisible run data modify storage space_editor:document settings.regionsVisible set value 1b",
         *dimensions("kill @e[tag=space_editor.preview]"),
         *dimensions("kill @e[tag=space_editor.selection_capture]"),
         "execute if entity @a[tag=space_editor.editing] run function space_editor:preview/resync",
@@ -76,7 +77,7 @@ def main() -> None:
         'data modify storage space_editor:document nextId set value 1',
         'data modify storage space_editor:document editMode set value 0b',
         'data modify storage space_editor:document selectedId set value ""',
-        'data modify storage space_editor:document settings set value {step:0.1d,stepMilli:100,fixedStep:1b,fixedBounds:1b,boundsVersion:3}',
+        'data modify storage space_editor:document settings set value {step:0.1d,stepMilli:100,fixedStep:1b,fixedBounds:1b,boundsVersion:3,regionsVisible:1b}',
     ])
     fn("internal/migrate_step", [
         'data modify storage space_editor:document settings.step set value 0.1d',
@@ -128,14 +129,16 @@ def main() -> None:
     fn("tick", [
         "scoreboard players add @a se.cd 0",
         "scoreboard players remove @a[scores={se.cd=1..}] se.cd 1",
-        *dimensions("kill @e[tag=space_editor.selection_candidate]"),
+        "scoreboard players set #selection_cursor_active se.v 0",
         "execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}}] run function space_editor:selection/track",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}}] run function space_editor:input/region",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_all\"}}] run function space_editor:input/resize_all",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_face\"}}] run function space_editor:input/resize_face",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"move\"}}] run function space_editor:input/move",
         "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"delete\"}}] run function space_editor:input/delete",
+        "execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region_visibility\"}}] run function space_editor:input/region_visibility",
         "scoreboard players set @a[scores={se.use=1..}] se.use 0",
+        "execute unless score #selection_cursor_active se.v matches 1 run function space_editor:preview/remove_selection_candidate",
         "execute as @a[tag=space_editor.editing] at @s run function space_editor:internal/dimension_tick",
     ])
     fn("internal/dimension_tick", [
@@ -155,6 +158,7 @@ def main() -> None:
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_face\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"resize_face\"}},minecraft:custom_name={text:\"面伸縮棒\",color:\"gold\",italic:false},minecraft:lore=[{text:\"見ている1面を移動 / Shiftで逆方向\",italic:false}] ]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"move\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"move\"}},minecraft:custom_name={text:\"範囲移動棒\",color:\"green\",italic:false},minecraft:lore=[{text:\"見ている面方向へ1ブロック / Shiftで逆方向\",italic:false}] ]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"delete\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"delete\"}},minecraft:custom_name={text:\"削除棒\",color:\"red\",italic:false},minecraft:lore=[{text:\"特殊ブロック・Regionを削除 / Pasteプレビューをキャンセル\",italic:false}] ]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region_visibility\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"region_visibility\"}},minecraft:custom_name={text:\"範囲表示切替棒\",color:\"light_purple\",italic:false},minecraft:lore=[{text:\"右クリック: 全Region枠・ラベル・Maskガイドを表示/非表示\",italic:false},{text:\"Mask本体には影響しません\",color:\"gray\",italic:false}]]",
         "function space_editor:preview/resync",
         message("編集モード。範囲棒を2回右クリックしてRegionを作成します。"),
     ])
@@ -192,6 +196,10 @@ def main() -> None:
     # blocks along the view ray becomes the candidate.  Clicking commits the
     # already-previewed candidate as A or B.
     fn("selection/track", [
+        "scoreboard players set #selection_cursor_active se.v 1",
+        "execute unless dimension minecraft:overworld in minecraft:overworld run kill @e[tag=space_editor.selection_candidate]",
+        "execute unless dimension minecraft:the_nether in minecraft:the_nether run kill @e[tag=space_editor.selection_candidate]",
+        "execute unless dimension minecraft:the_end in minecraft:the_end run kill @e[tag=space_editor.selection_candidate]",
         "data remove storage space_editor:runtime hover",
         "scoreboard players set #selection_ray se.v 0",
         "execute anchored eyes positioned ^ ^ ^ run function space_editor:internal/ray_selection",
@@ -308,10 +316,30 @@ def main() -> None:
     fn("preview/resync", [
         "function space_editor:preview/hide",
         "execute unless data storage space_editor:document {editMode:1b} run return 0",
+        "execute if data storage space_editor:document settings{regionsVisible:1b} run function space_editor:preview/render_regions",
+        "execute if data storage space_editor:runtime selection.a run function space_editor:preview/point",
+        "execute if data storage space_editor:document settings{regionsVisible:1b} if data storage space_editor:runtime hit.id run function space_editor:preview/highlight with storage space_editor:runtime hit",
+    ])
+    fn("preview/render_regions", [
         "data modify storage space_editor:runtime renderQueue set from storage space_editor:document regions",
         "execute if data storage space_editor:runtime renderQueue[0] run function space_editor:preview/next",
-        "execute if data storage space_editor:runtime selection.a run function space_editor:preview/point",
-        "execute if data storage space_editor:runtime hit.id run function space_editor:preview/highlight with storage space_editor:runtime hit",
+    ])
+    fn("input/region_visibility", [
+        "scoreboard players set @s se.cd 5",
+        "execute if data storage space_editor:document settings{regionsVisible:1b} run return run function space_editor:region/display/hide",
+        "function space_editor:region/display/show",
+    ])
+    fn("region/display/hide", [
+        "data modify storage space_editor:document settings.regionsVisible set value 0b",
+        *dimensions("kill @e[tag=space_editor.region]"),
+        *dimensions("kill @e[tag=space_editor.label]"),
+        *dimensions("kill @e[tag=space_editor.mask_guide]"),
+        message("全Region枠・ラベル・Maskガイドを非表示にしました。Mask本体は残しています。", "yellow"),
+    ])
+    fn("region/display/show", [
+        "data modify storage space_editor:document settings.regionsVisible set value 1b",
+        "function space_editor:preview/resync",
+        message("全Region枠・ラベル・Maskガイドを表示しました。", "green"),
     ])
     fn("preview/next", [
         "data modify storage space_editor:runtime renderRegion set from storage space_editor:runtime renderQueue[0]",
@@ -345,8 +373,12 @@ def main() -> None:
         '$execute in $(dimension) positioned $(ax) $(ay) $(az) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.point"],block_state:{Name:"' + DISPLAY_BLOCKS["guide"] + '"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}',
     ])
     fn("preview/selection_candidate", [
+        '$execute in $(dimension) positioned $(x) $(y) $(z) positioned ~0.5 ~ ~0.5 if entity @e[type=minecraft:block_display,tag=space_editor.selection_candidate,distance=..0.001,limit=1] run return 0',
+        '$execute in $(dimension) as @e[type=minecraft:block_display,tag=space_editor.selection_candidate,limit=1] run tp @s $(x) $(y) $(z)',
+        '$execute in $(dimension) if entity @e[type=minecraft:block_display,tag=space_editor.selection_candidate,limit=1] run return 0',
         '$execute in $(dimension) positioned $(x) $(y) $(z) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.selection_candidate"],block_state:{Name:"' + DISPLAY_BLOCKS["selectionCandidate"] + '"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}',
     ])
+    fn("preview/remove_selection_candidate", dimensions("kill @e[tag=space_editor.selection_candidate]"))
     fn("preview/highlight", ['$execute in $(dimension) as @e[tag=space_editor.region,scores={se.id=$(id)}] run data merge entity @s {block_state:{Name:"' + DISPLAY_BLOCKS["guide"] + '"}}'])
 
     # Ray-march through Region AABBs. The first sample hit wins; list order is

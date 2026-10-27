@@ -160,7 +160,7 @@ def main() -> None:
         '$execute in $(dim) positioned 0.0 0.0 0.0 run summon minecraft:block_display ~$(px) ~$(py) ~$(pz) {Tags:["space_editor.mask","space_editor.mask_body","space_editor.mask_new"],block_state:{Name:"' + DISPLAY_BLOCKS["maskBody"] + '"},transformation:{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},view_range:4f,width:128f,height:128f}',
         '$execute in $(dim) run scoreboard players set @e[type=minecraft:block_display,tag=space_editor.mask_new] se.id $(id)',
         '$execute in $(dim) run tag @e[type=minecraft:block_display,tag=space_editor.mask_new] remove space_editor.mask_new',
-        "execute if data storage space_editor:document {editMode:1b} run function space_editor:mask/spawn_guide with storage space_editor:runtime maskRender",
+        "execute if data storage space_editor:document {editMode:1b} if data storage space_editor:document settings{regionsVisible:1b} run function space_editor:mask/spawn_guide with storage space_editor:runtime maskRender",
     ])
     fn("mask/spawn_guide", [
         '$execute in $(dim) positioned 0.0 0.0 0.0 run summon minecraft:block_display ~$(px) ~$(py) ~$(pz) {Tags:["space_editor.preview","space_editor.mask_guide","space_editor.mask_guide_new"],block_state:{Name:"' + DISPLAY_BLOCKS["guide"] + '"},transformation:{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:3f,width:128f,height:128f}',
@@ -296,6 +296,21 @@ def main() -> None:
         message('名前: /function space_editor:mask/rename {id:1,name:"entrance"}'),
         message("削除棒は同じRegionのMaskを先に削除し、次のクリックでRegionを削除します。"),
         message("Mask対象素材: /function space_editor:mask/give_target_stone など。Fill棒のオフハンドで使用します。"),
+        message("実体確認: /function space_editor:mask/debug/show（解除は debug/hide）"),
+    ])
+    fn("mask/debug/show", [
+        *dimensions('execute as @e[type=minecraft:block_display,tag=space_editor.mask_body] run data merge entity @s {Glowing:1b,glow_color_override:16711935,view_range:16f}'),
+        message("Mask本体を発光輪郭・view_range 16で表示します。テクスチャとMask方式は変更しません。", "yellow"),
+    ])
+    fn("mask/debug/hide", [
+        *dimensions('execute as @e[type=minecraft:block_display,tag=space_editor.mask_body] run data merge entity @s {Glowing:0b,view_range:4f}'),
+        *dimensions('execute as @e[type=minecraft:block_display,tag=space_editor.mask_body] run data remove entity @s glow_color_override'),
+        message("Mask本体のデバッグ表示を解除しました。", "green"),
+    ])
+    fn("mask/debug/status", [
+        'tellraw @s [{text:"Document Masks: ",color:"light_purple"},{nbt:"masks",storage:"space_editor:document",interpret:false}]',
+        'execute unless entity @e[type=minecraft:block_display,tag=space_editor.mask_body,limit=1] run ' + message("現在のdimensionにMask本体がありません。", "red"),
+        'execute if entity @e[type=minecraft:block_display,tag=space_editor.mask_body,limit=1] run tellraw @s [{text:"Mask body: ",color:"light_purple"},{text:"block="},{nbt:"block_state.Name",entity:"@e[type=minecraft:block_display,tag=space_editor.mask_body,limit=1]"},{text:", pos="},{nbt:"Pos",entity:"@e[type=minecraft:block_display,tag=space_editor.mask_body,limit=1]"},{text:", scale="},{nbt:"transformation.scale",entity:"@e[type=minecraft:block_display,tag=space_editor.mask_body,limit=1]"},{text:", view_range="},{nbt:"view_range",entity:"@e[type=minecraft:block_display,tag=space_editor.mask_body,limit=1]"}]',
     ])
     append(F / "menu.mcfunction", [message("Mask: Mask棒でRegionを右クリック / 詳細: /function space_editor:mask/help")])
     append(F / "status.mcfunction", [

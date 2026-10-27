@@ -4,3 +4,4 @@ tellraw @s {"text": "[Space Editor] 拡張: /function space_editor:mask/set_expa
 tellraw @s {"text": "[Space Editor] 名前: /function space_editor:mask/rename {id:1,name:\"entrance\"}", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] 削除棒は同じRegionのMaskを先に削除し、次のクリックでRegionを削除します。", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] Mask対象素材: /function space_editor:mask/give_target_stone など。Fill棒のオフハンドで使用します。", "color": "aqua"}
+tellraw @s {"text": "[Space Editor] 実体確認: /function space_editor:mask/debug/show（解除は debug/hide）", "color": "aqua"}

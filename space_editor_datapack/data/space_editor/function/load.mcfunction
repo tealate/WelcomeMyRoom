@@ -13,6 +13,7 @@ execute unless data storage space_editor:document schemaVersion run function spa
 execute unless data storage space_editor:document {schemaVersion:1} run return run tellraw @a {"text": "[Space Editor] 未対応の保存形式です。データは変更していません。", "color": "red"}
 execute unless data storage space_editor:document settings.stepMilli run function space_editor:internal/migrate_step
 execute unless data storage space_editor:document settings{boundsVersion:3} run function space_editor:internal/migrate_bounds
+execute unless data storage space_editor:document settings.regionsVisible run data modify storage space_editor:document settings.regionsVisible set value 1b
 execute in minecraft:overworld run kill @e[tag=space_editor.preview]
 execute in minecraft:the_nether run kill @e[tag=space_editor.preview]
 execute in minecraft:the_end run kill @e[tag=space_editor.preview]

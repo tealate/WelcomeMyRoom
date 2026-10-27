@@ -41,6 +41,7 @@ def managed_blockstates(config: dict | None = None) -> dict[Path, str]:
         blockstate_relative_path(displays["maskBody"]): "editor:block/mask_body",
         blockstate_relative_path(displays["selection"]): "editor:block/selection",
         blockstate_relative_path(displays["guide"]): "editor:block/guide",
+        blockstate_relative_path(displays["selectionCandidate"]): "editor:block/selection_candidate",
     }
     managed.update({
         blockstate_relative_path(palette["carrierBlock"]): f"editor:block/{name}_maskable"
@@ -115,6 +116,24 @@ def _remove_stale(root: Path, desired: set[str], *, restore_original: bool) -> i
     return removed
 
 
+def _preview_model(name: str) -> dict:
+    outer = {"from": [0, 0, 0], "to": [16, 16, 16], "shade": False,
+             "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]} for face in ("north", "south", "east", "west", "up", "down")}}
+    planes = (
+        ([0, 0, 0], [16, 16, 0.01], "south"), ([0, 0, 15.99], [16, 16, 16], "north"),
+        ([0, 0, 0], [0.01, 16, 16], "east"), ([15.99, 0, 0], [16, 16, 16], "west"),
+        ([0, 0, 0], [16, 0.01, 16], "up"), ([0, 15.99, 0], [16, 16, 16], "down"),
+    )
+    elements = [outer] + [
+        {"from": start, "to": end, "shade": False, "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]}}}
+        for start, end, face in planes
+    ]
+    return {
+        "textures": {"particle": f"editor:block/{name}", "all": f"editor:block/{name}"},
+        "elements": elements,
+    }
+
+
 def build_preview_resources() -> None:
     from PIL import Image
 
@@ -130,21 +149,27 @@ def build_preview_resources() -> None:
                 if x < border or x >= 32 - border or y < border or y >= 32 - border or x == y or x + y == 31:
                     image.putpixel((x, y), color)
         image.save(destination)
-        outer = {"from": [0, 0, 0], "to": [16, 16, 16], "shade": False,
-                 "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]} for face in ("north", "south", "east", "west", "up", "down")}}
-        planes = (
-            ([0, 0, 0], [16, 16, 0.01], "south"), ([0, 0, 15.99], [16, 16, 16], "north"),
-            ([0, 0, 0], [0.01, 16, 16], "east"), ([15.99, 0, 0], [16, 16, 16], "west"),
-            ([0, 0, 0], [16, 0.01, 16], "up"), ([0, 15.99, 0], [16, 16, 16], "down"),
+        write_json(RP / f"assets/editor/models/block/{name}.json", _preview_model(name))
+
+    # The selection cursor is a hand-authored live asset.  Validate and mirror
+    # it, but never regenerate it, so LibreSprite edits remain authoritative.
+    live_candidate = ROOT / "assets/editor/textures/block/selection_candidate.png"
+    if not live_candidate.is_file():
+        raise FileNotFoundError(
+            "Missing authored cursor texture: assets/editor/textures/block/selection_candidate.png"
         )
-        elements = [outer] + [
-            {"from": start, "to": end, "shade": False, "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]}}}
-            for start, end, face in planes
-        ]
-        write_json(RP / f"assets/editor/models/block/{name}.json", {
-            "textures": {"particle": f"editor:block/{name}", "all": f"editor:block/{name}"},
-            "elements": elements,
-        })
+    with Image.open(live_candidate) as image:
+        rgba = image.convert("RGBA")
+        alpha = set(rgba.getchannel("A").getdata())
+        if rgba.size != (32, 32) or not {0, 255}.issubset(alpha):
+            raise ValueError(
+                "selection_candidate.png must be 32x32 with transparent and opaque pixels"
+            )
+    candidate = RP / "assets/editor/textures/block/selection_candidate.png"
+    candidate.parent.mkdir(parents=True, exist_ok=True)
+    if not candidate.exists() or candidate.read_bytes() != live_candidate.read_bytes():
+        shutil.copyfile(live_candidate, candidate)
+    write_json(RP / "assets/editor/models/block/selection_candidate.json", _preview_model("selection_candidate"))
 
 
 def build_resources() -> None:
@@ -162,9 +187,21 @@ def build_resources() -> None:
         write_json(RP / f"assets/editor/models/block/{name}_maskable.json", {
             "parent": "minecraft:block/cube_all", "textures": {"all": f"editor:block/{name}_maskable"}
         })
+    # mask_body.png is an authored, live resource.  LibreSprite edits belong in
+    # ROOT/assets and must never be replaced by a generator default.  Keep the
+    # auxiliary resource tree as a mirror so inspections there see the same
+    # bytes Minecraft actually loads.
+    live_mask = ROOT / "assets/editor/textures/block/mask_body.png"
+    if not live_mask.is_file():
+        raise FileNotFoundError(
+            "Missing authored mask texture: assets/editor/textures/block/mask_body.png"
+        )
+    with Image.open(live_mask) as image:
+        image.verify()
     mask = RP / "assets/editor/textures/block/mask_body.png"
     mask.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGBA", (32, 32), (255, 255, 255, 1)).save(mask)
+    if not mask.exists() or mask.read_bytes() != live_mask.read_bytes():
+        shutil.copyfile(live_mask, mask)
     write_json(RP / "assets/editor/models/block/mask_body.json", {
         "textures": {"particle": "editor:block/mask_body", "all": "editor:block/mask_body"},
         "elements": [{"from": [0, 0, 0], "to": [16, 16, 16], "shade": False,
@@ -201,7 +238,12 @@ def sync_live_resources() -> None:
             RP / f"assets/editor/models/block/{name}_maskable.json",
             RP / f"assets/editor/textures/block/{name}_maskable.png",
         ]
-    for name in ("mask_body", "selection", "guide"):
+    # mask_body.png is intentionally omitted: ROOT/assets is its source of
+    # truth. build_resources() mirrors it in the auxiliary tree, never the
+    # other way around.
+    files += [RP / "assets/editor/models/block/mask_body.json"]
+    files += [RP / "assets/editor/models/block/selection_candidate.json"]
+    for name in ("selection", "guide"):
         files += [
             RP / f"assets/editor/models/block/{name}.json",
             RP / f"assets/editor/textures/block/{name}.png",

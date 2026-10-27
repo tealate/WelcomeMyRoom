@@ -1,1 +1,4 @@
+$execute in $(dimension) positioned $(x) $(y) $(z) positioned ~0.5 ~ ~0.5 if entity @e[type=minecraft:block_display,tag=space_editor.selection_candidate,distance=..0.001,limit=1] run return 0
+$execute in $(dimension) as @e[type=minecraft:block_display,tag=space_editor.selection_candidate,limit=1] run tp @s $(x) $(y) $(z)
+$execute in $(dimension) if entity @e[type=minecraft:block_display,tag=space_editor.selection_candidate,limit=1] run return 0
 $execute in $(dimension) positioned $(x) $(y) $(z) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.selection_candidate"],block_state:{Name:"minecraft:orange_glazed_terracotta"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[1f,1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},view_range:2f,width:2f,height:2f}

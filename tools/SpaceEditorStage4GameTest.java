@@ -26,6 +26,7 @@ public class SpaceEditorStage4GameTest {
     static void pcmd(String value){helper.getLevel().getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack().withPermission(net.minecraft.server.permissions.PermissionSet.ALL_PERMISSIONS),value);}
     static void check(boolean ok,String message){if(!ok)throw new AssertionError(message+" DOCUMENT="+document()+" RUNTIME="+runtime());}
     static long count(String tag){long result=0;for(var entity:helper.getLevel().getAllEntities())if(entity.entityTags().contains(tag))result++;return result;}
+    static net.minecraft.world.entity.Entity entity(String tag){for(var entity:helper.getLevel().getAllEntities())if(entity.entityTags().contains(tag))return entity;return null;}
 
     static void test(GameTestHelper h){
         helper=h;source=h.getLevel().getServer().createCommandSourceStack();step=0;waitTicks=0;finished=false;
@@ -47,6 +48,20 @@ public class SpaceEditorStage4GameTest {
                     cmd("data modify storage space_editor:runtime selection set value {a:[I;"+rx+","+ry+","+rz+"],b:[I;"+rx+","+ry+","+rz+"],dimension:\"minecraft:overworld\"}");
                     cmd("function space_editor:region/create");
                     check(regions().size()==1,"one-block Region created in loaded test chunk");
+                    cmd("data modify storage space_editor:runtime cursorTest set value {dimension:\"minecraft:overworld\",x:0,y:81,z:0}");
+                    cmd("function space_editor:preview/selection_candidate with storage space_editor:runtime cursorTest");
+                    var cursor=entity("space_editor.selection_candidate");
+                    check(cursor!=null,"selection cursor spawned once");
+                    var cursorId=cursor.getUUID();
+                    cmd("function space_editor:preview/selection_candidate with storage space_editor:runtime cursorTest");
+                    check(count("space_editor.selection_candidate")==1 && entity("space_editor.selection_candidate").getUUID().equals(cursorId),"unchanged cursor reuses entity");
+                    cmd("data modify storage space_editor:runtime cursorTest.x set value 1");
+                    cmd("function space_editor:preview/selection_candidate with storage space_editor:runtime cursorTest");
+                    cursor=entity("space_editor.selection_candidate");
+                    check(cursor.getUUID().equals(cursorId),"moved cursor preserves entity UUID old="+cursorId+" new="+cursor.getUUID());
+                    check(Math.abs(cursor.getX()-1.5)<.000001,"moved cursor reaches target block center x="+cursor.getX());
+                    cmd("function space_editor:preview/remove_selection_candidate");
+                    check(count("space_editor.selection_candidate")==0,"unused cursor removed");
                     pcmd("function space_editor:start");
                     pcmd("execute store result storage space_editor:runtime stage4.maskWands int 1 run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"mask\"}}] 0");
                     check(runtime().getCompoundOrEmpty("stage4").getIntOr("maskWands",0)==1,"dedicated Mask wand issued");
@@ -102,7 +117,7 @@ public class SpaceEditorStage4GameTest {
                     cmd("data modify storage space_editor:runtime hit set from storage space_editor:document regions[0]");
                     pcmd("function space_editor:region/apply_hit");
                     check(regions().isEmpty(),"second delete removes now-unmasked Region");
-                    System.out.println("SPACE_EDITOR_STAGE4_RUNTIME_PASS: Mask wand, persistent Region reference, low-alpha body, edit-only guide, play visibility, exact offset/expand, invalid-size rejection, rename, Region resize following, Action records, reload rebuild, delete ordering");
+                    System.out.println("SPACE_EDITOR_STAGE4_RUNTIME_PASS: reused selection cursor spawn/stay/move/remove, Mask wand, persistent Region reference, low-alpha body, edit-only guide, play visibility, exact offset/expand, invalid-size rejection, rename, Region resize following, Action records, reload rebuild, delete ordering");
                     finished=true;h.succeed();
                 }
             }catch(Throwable ex){finished=true;ex.printStackTrace();h.fail(ex.getMessage());}

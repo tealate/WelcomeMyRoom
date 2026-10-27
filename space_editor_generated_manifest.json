@@ -21,6 +21,10 @@
       "generatedHash": "de582eedd91bc6d6f9a3ef568060bab6068186ec5b376299bbb865aab4b2061a",
       "originalBase64": null
     },
+    "assets/minecraft/blockstates/orange_glazed_terracotta.json": {
+      "generatedHash": "b10a6009ed815dc608009bed1528ac55ad13cd1870d92bca3a309f285b8b2ef4",
+      "originalBase64": "ewogICJ2YXJpYW50cyI6IHsKICAgICJmYWNpbmc9ZWFzdCI6IHsKICAgICAgIm1vZGVsIjogIm1pbmVjcmFmdDpibG9jay9vcmFuZ2VfZ2xhemVkX3RlcnJhY290dGEiLAogICAgICAieSI6IDI3MAogICAgfSwKICAgICJmYWNpbmc9bm9ydGgiOiB7CiAgICAgICJtb2RlbCI6ICJtaW5lY3JhZnQ6YmxvY2svb3JhbmdlX2dsYXplZF90ZXJyYWNvdHRhIiwKICAgICAgInkiOiAxODAKICAgIH0sCiAgICAiZmFjaW5nPXNvdXRoIjogewogICAgICAibW9kZWwiOiAibWluZWNyYWZ0OmJsb2NrL29yYW5nZV9nbGF6ZWRfdGVycmFjb3R0YSIKICAgIH0sCiAgICAiZmFjaW5nPXdlc3QiOiB7CiAgICAgICJtb2RlbCI6ICJtaW5lY3JhZnQ6YmxvY2svb3JhbmdlX2dsYXplZF90ZXJyYWNvdHRhIiwKICAgICAgInkiOiA5MAogICAgfQogIH0KfQ=="
+    },
     "assets/minecraft/blockstates/orange_terracotta.json": {
       "generatedHash": "65b8b3306a4b8b1f1b1eedaaa6eb952cd0b34e3cae076f59af2ee11810738933",
       "originalBase64": null

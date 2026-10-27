@@ -90,8 +90,24 @@ Mask 対象素材は `/function space_editor:mask/give_target_stone` などで�
 オフハンドに持って使います。`stone`、`dirt`、`oak`、`bricks`、`quartz` を用意しています。
 論理素材名と代理ブロックは `space_editor_blocks.json` で管理します。
 
-Mask 本体の初期割り当ては `waxed_oxidized_cut_copper` です。全画素α1の専用テクスチャを使うため、
+Mask 本体の初期割り当ては `waxed_oxidized_cut_copper` です。専用テクスチャを使うため、通常は
 ほぼ不可視の translucent Display になります。割り当ては `displayBlocks.maskBody` で変更できます。
+
+Mask 本体の手編集元は、Minecraft が直接読む
+`assets/editor/textures/block/mask_body.png` です。LibreSprite ではこのファイルを編集し、保存後に
+`F3+T` してください。生成器はこの PNG を上書きせず、`space_editor_resources/` 側へ同じ内容を
+ミラーします。補助側の同名 PNG を編集しても、それだけでは Minecraft の表示へ反映されません。
+
+実体と範囲をテクスチャに依存せず確認する場合は、次の一時デバッグ表示を使えます。
+
+```mcfunction
+/function space_editor:mask/debug/show
+/function space_editor:mask/debug/status
+/function space_editor:mask/debug/hide
+```
+
+`debug/show` は既存の Mask 本体を発光輪郭にして `view_range` を 16 へ広げるだけで、Mask方式や
+テクスチャは変更しません。PNGそのものを不透明色で確認する場合も、上記ライブPNGだけを編集します。
 
 `space_editor:document` の `masks`、`nextMaskId` を含む既存フィールドやワールドデータを、
 生成や旧実装の整理で削除・初期化しないでください。
@@ -102,6 +118,7 @@ Mask 本体の初期割り当ては `waxed_oxidized_cut_copper` です。全画�
 - 全体サイズ変更棒: 右クリックで拡大、Shift+右クリックで縮小
 - 面伸縮棒: 見ている面を移動、Shift で逆方向
 - 範囲移動棒: 見ている面方向へ移動、Shift で逆方向
+- 範囲表示切替棒: 右クリックで全Region枠・ラベル・Maskガイドを表示／非表示（Mask本体は維持）
 - 削除棒: Paste preview、特殊ブロック、Mask、Region の順に対象を削除
 - Copy / Paste / Fill 棒: Stage 02 以降で使用
 - Mask 棒: Stage 04 で Region から Mask を生成
@@ -113,14 +130,20 @@ Mask 本体の初期割り当ては `waxed_oxidized_cut_copper` です。全画�
 ## アセット
 
 Stage 01 の生成時に `tools/build_space_editor_resources.py` が共有描画アセットを再生成し、
-次の2か所を同期します。
+次の2か所を同期します。ただし手編集対象の `mask_body.png` だけはライブ先を正本とします。
 
-- 生成元: `space_editor_resources/assets/`
+- 通常の生成元: `space_editor_resources/assets/`
 - Minecraft が読むライブ先: ルート `assets/`
+- `mask_body.png` の正本: ルート `assets/editor/textures/block/mask_body.png`
 
 `assets/editor/` という resource namespace は現行 block display が使用しています。旧 function
 namespace ではないため削除しません。blockstate の割り当ては `space_editor_blocks.json`、
 安全な上書き／復元情報は `space_editor_generated_manifest.json` で管理します。
+
+選択カーソルの手編集元は
+`assets/editor/textures/block/selection_candidate.png` です。32×32の透明面＋不透明な外枠・対角線を
+持つ専用テクスチャで、生成器は内容を上書きせず補助ツリーへミラーします。モデルは外向きの面に加え、
+内側からも線を確認できる薄い内向き面を持ちます。編集後は `F3+T` で反映してください。
 
 ## 検証
 

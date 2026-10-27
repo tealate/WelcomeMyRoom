@@ -1,14 +1,13 @@
 scoreboard players add @a se.cd 0
 scoreboard players remove @a[scores={se.cd=1..}] se.cd 1
-execute in minecraft:overworld run kill @e[tag=space_editor.selection_candidate]
-execute in minecraft:the_nether run kill @e[tag=space_editor.selection_candidate]
-execute in minecraft:the_end run kill @e[tag=space_editor.selection_candidate]
+scoreboard players set #selection_cursor_active se.v 0
 execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"region"}}] run function space_editor:selection/track
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"region"}}] run function space_editor:input/region
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"resize_all"}}] run function space_editor:input/resize_all
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"resize_face"}}] run function space_editor:input/resize_face
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"move"}}] run function space_editor:input/move
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"delete"}}] run function space_editor:input/delete
+execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"region_visibility"}}] run function space_editor:input/region_visibility
 scoreboard players add @a se.ph 0
 scoreboard players add @a se.rot 0
 scoreboard players add @a se.flip 0
@@ -25,4 +24,5 @@ execute if data storage space_editor:document job{state:"awaiting_item"} run fun
 execute if data storage space_editor:document job{state:"complete"} run function space_editor:job/notify_complete
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"mask"}}] run function space_editor:input/mask
 scoreboard players set @a[scores={se.use=1..}] se.use 0
+execute unless score #selection_cursor_active se.v matches 1 run function space_editor:preview/remove_selection_candidate
 execute as @a[tag=space_editor.editing] at @s run function space_editor:internal/dimension_tick
