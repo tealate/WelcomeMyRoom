@@ -34,6 +34,10 @@ public class ValidateMinecraft {
                         lineValues.put("block", "minecraft:iron_chain"); lineValues.put("axis", "x"); lineValues.put("waterlogged", "false");
                     } else if (path.toString().contains("transform\\apply_axis")) {
                         lineValues.put("block", "minecraft:oak_log"); lineValues.put("axis", "x"); lineValues.put("waterlogged", "false");
+                    } else if (path.toString().contains("transform\\apply_special_wall")) {
+                        lineValues.put("block", "minecraft:cobblestone_wall"); lineValues.put("north", "none"); lineValues.put("east", "none"); lineValues.put("south", "none"); lineValues.put("west", "none"); lineValues.put("up", "true"); lineValues.put("waterlogged", "false");
+                    } else if (path.toString().contains("transform\\apply_special_fence") || path.toString().contains("transform\\apply_fence")) {
+                        lineValues.put("block", "minecraft:oak_fence"); lineValues.put("north", "false"); lineValues.put("east", "false"); lineValues.put("south", "false"); lineValues.put("west", "false"); lineValues.put("waterlogged", "false");
                     } else if (path.toString().contains("transform\\apply_connections")) {
                         lineValues.put("block", "minecraft:oak_fence"); lineValues.put("north", "false"); lineValues.put("east", "false"); lineValues.put("south", "false"); lineValues.put("west", "false"); lineValues.put("waterlogged", "false");
                     } else if (path.toString().contains("transform\\apply_slab")) {

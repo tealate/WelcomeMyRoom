@@ -8,6 +8,7 @@ scoreboard players set #paste_hit se.v 0
 execute if data storage space_editor:runtime pastePending if data storage space_editor:runtime {activeTool:"delete"} store result score #paste_hit se.v run function space_editor:paste/check_preview_hit with storage space_editor:runtime pastePending
 execute if data storage space_editor:runtime pastePending if data storage space_editor:runtime {activeTool:"move"} store result score #paste_hit se.v run function space_editor:paste/check_preview_hit with storage space_editor:runtime pastePending
 execute if score #paste_hit se.v matches 1 run return run function space_editor:paste/apply_preview_hit
+execute if data storage space_editor:runtime {activeTool:"delete"} if block ~ ~ ~ #space_editor:special_collision run return run execute align xyz run function space_editor:special/delete_at
 data modify storage space_editor:runtime candidates set from storage space_editor:document regions
 execute if data storage space_editor:runtime candidates[0] run function space_editor:region/check_next
 execute if data storage space_editor:runtime hit run return run function space_editor:region/apply_hit

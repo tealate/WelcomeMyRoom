@@ -1,0 +1,1 @@
+$execute in $(targetDimension) positioned $(blockTargetX) $(blockTargetY) $(blockTargetZ) as @e[type=minecraft:block_display,tag=space_editor.special,distance=..0.1] run function space_editor:special/remove_entity

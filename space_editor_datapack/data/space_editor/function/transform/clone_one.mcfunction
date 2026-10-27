@@ -6,12 +6,16 @@ function space_editor:transform/state_capture with storage space_editor:document
 execute unless data storage space_editor:runtime transformState{kind:"none"} unless data storage space_editor:runtime transformState.block run return run function space_editor:transform/fail_state_item
 execute store success score #clone_ok se.v run function space_editor:transform/clone_one_macro with storage space_editor:document job
 execute unless score #clone_ok se.v matches 1 run return run function space_editor:transform/fail_clone
+function space_editor:special/clear_target_display with storage space_editor:document job
 execute unless data storage space_editor:runtime transformState{kind:"none"} run function space_editor:transform/clear_target with storage space_editor:runtime transformState
 scoreboard players set #state_ok se.v 1
 execute if data storage space_editor:runtime transformState{kind:"stairs"} store success score #state_ok se.v run function space_editor:transform/apply_stairs with storage space_editor:runtime transformState
 execute if data storage space_editor:runtime transformState{kind:"slab"} store success score #state_ok se.v run function space_editor:transform/apply_slab with storage space_editor:runtime transformState
+execute if data storage space_editor:runtime transformState{kind:"fence",flipY:0b} store success score #state_ok se.v run function space_editor:transform/apply_fence with storage space_editor:runtime transformState
+execute if data storage space_editor:runtime transformState{kind:"fence",flipY:1b} store success score #state_ok se.v run function space_editor:transform/apply_special_fence with storage space_editor:runtime transformState
 execute if data storage space_editor:runtime transformState{kind:"connections"} store success score #state_ok se.v run function space_editor:transform/apply_connections with storage space_editor:runtime transformState
-execute if data storage space_editor:runtime transformState{kind:"wall"} store success score #state_ok se.v run function space_editor:transform/apply_wall with storage space_editor:runtime transformState
+execute if data storage space_editor:runtime transformState{kind:"wall",flipY:0b} store success score #state_ok se.v run function space_editor:transform/apply_wall with storage space_editor:runtime transformState
+execute if data storage space_editor:runtime transformState{kind:"wall",flipY:1b} store success score #state_ok se.v run function space_editor:transform/apply_special_wall with storage space_editor:runtime transformState
 execute if data storage space_editor:runtime transformState{kind:"axis"} store success score #state_ok se.v run function space_editor:transform/apply_axis with storage space_editor:runtime transformState
 execute if data storage space_editor:runtime transformState{kind:"axis_waterlogged"} store success score #state_ok se.v run function space_editor:transform/apply_axis_waterlogged with storage space_editor:runtime transformState
 execute unless score #state_ok se.v matches 1 run return run function space_editor:transform/fail_state_apply

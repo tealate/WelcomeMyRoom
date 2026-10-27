@@ -15,7 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DP = ROOT / "space_editor_datapack"
 F = DP / "data/space_editor/function"
 try:
-    DISPLAY_BLOCKS = load_editor_block_config()["displayBlocks"]
+    BLOCK_CONFIG = load_editor_block_config()
+    DISPLAY_BLOCKS = BLOCK_CONFIG["displayBlocks"]
 except EditorBlockConfigError as error:
     raise SystemExit(f"Error: {error}") from None
 
@@ -156,7 +157,7 @@ def main() -> None:
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_all\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"resize_all\"}},minecraft:custom_name={text:\"全体サイズ変更棒\",color:\"yellow\",italic:false},minecraft:lore=[{text:\"右クリック=拡大 / Shift+右クリック=縮小\",italic:false}] ]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_face\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"resize_face\"}},minecraft:custom_name={text:\"面伸縮棒\",color:\"gold\",italic:false},minecraft:lore=[{text:\"見ている1面を移動 / Shiftで逆方向\",italic:false}] ]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"move\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"move\"}},minecraft:custom_name={text:\"範囲移動棒\",color:\"green\",italic:false},minecraft:lore=[{text:\"見ている面方向へ1ブロック / Shiftで逆方向\",italic:false}] ]",
-        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"delete\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"delete\"}},minecraft:custom_name={text:\"Region削除棒\",color:\"red\",italic:false},minecraft:lore=[{text:\"Regionを削除 / Pasteプレビューをキャンセル\",italic:false}] ]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"delete\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"delete\"}},minecraft:custom_name={text:\"削除棒\",color:\"red\",italic:false},minecraft:lore=[{text:\"特殊ブロック・Regionを削除 / Pasteプレビューをキャンセル\",italic:false}] ]",
         "function space_editor:preview/resync",
         message("編集モード。範囲棒を2回右クリックしてRegionを作成します。"),
     ])

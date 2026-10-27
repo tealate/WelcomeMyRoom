@@ -1,4 +1,4 @@
-data modify storage space_editor:runtime transformState set value {kind:"wall",north:"none",east:"none",south:"none",west:"none",up:"true",waterlogged:"false",x:0,y:0,z:0}
+data modify storage space_editor:runtime transformState set value {kind:"wall",north:"none",east:"none",south:"none",west:"none",up:"true",waterlogged:"false",flipY:0b,x:0,y:0,z:0}
 execute if block ~ ~ ~ #space_editor:transform_walls[north=none] run data modify storage space_editor:runtime transformState.north set value "none"
 execute if block ~ ~ ~ #space_editor:transform_walls[north=low] run data modify storage space_editor:runtime transformState.north set value "low"
 execute if block ~ ~ ~ #space_editor:transform_walls[north=tall] run data modify storage space_editor:runtime transformState.north set value "tall"
@@ -16,6 +16,7 @@ execute if block ~ ~ ~ #space_editor:transform_walls[up=false] run data modify s
 execute if block ~ ~ ~ #space_editor:transform_walls[waterlogged=true] run data modify storage space_editor:runtime transformState.waterlogged set value "true"
 execute if block ~ ~ ~ #space_editor:transform_walls[waterlogged=false] run data modify storage space_editor:runtime transformState.waterlogged set value "false"
 function space_editor:transform/rotate_connections
+data modify storage space_editor:runtime transformState.flipY set from storage space_editor:document job.flipY
 data modify storage space_editor:runtime transformState.x set from storage space_editor:document job.blockTargetX
 data modify storage space_editor:runtime transformState.y set from storage space_editor:document job.blockTargetY
 data modify storage space_editor:runtime transformState.z set from storage space_editor:document job.blockTargetZ

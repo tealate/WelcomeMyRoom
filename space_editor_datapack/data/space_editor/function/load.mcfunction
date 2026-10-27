@@ -32,5 +32,9 @@ scoreboard objectives add se.pitch dummy
 scoreboard objectives add se.rot dummy
 scoreboard objectives add se.flip dummy
 scoreboard objectives add se.intent dummy
+scoreboard objectives add se.sid dummy
+execute unless data storage space_editor:document specials run data modify storage space_editor:document specials set value []
+execute unless data storage space_editor:document nextSpecialId run data modify storage space_editor:document nextSpecialId set value 1
+schedule function space_editor:special/cleanup 1s replace
 tellraw @a {"text": "[Space Editor] 第2段階: Fill / Copy / Pasteを読み込みました。", "color": "aqua"}
 tellraw @a {"text": "[Space Editor] 第3段階: 水平回転 / FlipY変換を読み込みました。", "color": "aqua"}

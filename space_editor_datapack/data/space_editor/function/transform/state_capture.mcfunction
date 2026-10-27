@@ -1,5 +1,6 @@
 $execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_stairs run function space_editor:transform/capture_stairs with storage space_editor:document job
 $execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_slabs run function space_editor:transform/capture_slab with storage space_editor:document job
+$execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_fences run function space_editor:transform/capture_fence with storage space_editor:document job
 $execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_connections run function space_editor:transform/capture_connections with storage space_editor:document job
 $execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_walls run function space_editor:transform/capture_wall with storage space_editor:document job
 $execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_axis run function space_editor:transform/capture_axis with storage space_editor:document job

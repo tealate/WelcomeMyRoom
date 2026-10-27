@@ -1,0 +1,2 @@
+function space_editor:special/sync_neighbors
+function space_editor:special/remove_entity

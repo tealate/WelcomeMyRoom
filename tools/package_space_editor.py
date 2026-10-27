@@ -97,7 +97,7 @@ def main():
     (out/"SHA256.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     log=["# Space Editor アセット検証", "", *["- "+c for c in checks], "", "## PNG（すべて独立した配布用リソースパック内）", ""]
     log += [f"- `{path}` — {result}" for path,result in png_results]
-    log += ["", "## JSON / pack.mcmeta", "", *["- `"+p+"`" for p in json_files], "", "build_space_editor.pyは専用アセット24ファイルを有効なルートassets/にも反映します。元のバニラ画像とルートpack.mcmetaは変更しません。", ""]
+    log += ["", "## JSON / pack.mcmeta", "", *["- `"+p+"`" for p in json_files], "", "build_space_editor.pyは専用アセット28ファイルを有効なルートassets/にも反映します。元のバニラ画像とルートpack.mcmetaは変更しません。", ""]
     (ROOT/"VALIDATION_ASSETS.md").write_text("\n".join(log),encoding="utf-8")
     bundle=ROOT/"dist/SpaceEditor-1.0.zip"
     with zipfile.ZipFile(bundle,"w",zipfile.ZIP_DEFLATED) as z:

@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DP = ROOT / "space_editor_datapack"
 F = DP / "data/space_editor/function"
 PROPERTY_REPORT = ROOT / "build/test-server/block-properties-26.1.tsv"
+COLLISION_CARRIERS = stage2.stage1.BLOCK_CONFIG["collisionCarriers"]
 
 
 def write(path: Path, text: str) -> None:
@@ -55,6 +56,7 @@ def build_transform_tags() -> None:
         "stairs": tag_root / "transform_stairs.json",
         "slabs": tag_root / "transform_slabs.json",
         "connections": tag_root / "transform_connections.json",
+        "fences": tag_root / "transform_fences.json",
         "walls": tag_root / "transform_walls.json",
         "axis": tag_root / "transform_axis.json",
         "axis_waterlogged": tag_root / "transform_axis_waterlogged.json",
@@ -85,7 +87,7 @@ def build_transform_tags() -> None:
         elif signature == ("type", "waterlogged"):
             groups["slabs"].append(block_id)
         elif signature == ("east", "north", "south", "waterlogged", "west"):
-            groups["connections"].append(block_id)
+            groups["fences" if block_id.endswith("_fence") else "connections"].append(block_id)
         elif signature == ("east", "north", "south", "up", "waterlogged", "west"):
             groups["walls"].append(block_id)
         elif signature == ("axis",):
@@ -102,7 +104,11 @@ def build_transform_tags() -> None:
     js(names["allowed"], {"replace": False, "values": allowed})
     js(names["vertical_unsupported"], {
         "replace": False,
-        "values": sorted(set(groups["connections"] + groups["walls"])),
+        "values": sorted(set(groups["connections"])),
+    })
+    js(tag_root / "special_collision.json", {
+        "replace": False,
+        "values": [COLLISION_CARRIERS["fence"], COLLISION_CARRIERS["wall"]],
     })
 
 
@@ -119,8 +125,18 @@ def main() -> None:
         "scoreboard objectives add se.rot dummy",
         "scoreboard objectives add se.flip dummy",
         "scoreboard objectives add se.intent dummy",
+        "scoreboard objectives add se.sid dummy",
+        "execute unless data storage space_editor:document specials run data modify storage space_editor:document specials set value []",
+        "execute unless data storage space_editor:document nextSpecialId run data modify storage space_editor:document nextSpecialId set value 1",
+        "schedule function space_editor:special/cleanup 1s replace",
     ])
     append(F / "load.mcfunction", [message("第3段階: 水平回転 / FlipY変換を読み込みました。", target="@a")])
+
+    # Delete-wand priority is: pending paste preview, a directly sighted
+    # special collision carrier, then the existing Region ray result.
+    insert_before(F / "region/ray.mcfunction", "data modify storage space_editor:runtime candidates", [
+        'execute if data storage space_editor:runtime {activeTool:"delete"} if block ~ ~ ~ #space_editor:special_collision run return run execute align xyz run function space_editor:special/delete_at',
+    ])
 
     # A paste-wand hold is one transform-control session. Re-equipping resets
     # rotation and FlipY, captures a new baseline yaw, then keeps the chosen
@@ -428,12 +444,16 @@ def main() -> None:
         'execute unless data storage space_editor:runtime transformState{kind:"none"} unless data storage space_editor:runtime transformState.block run return run function space_editor:transform/fail_state_item',
         "execute store success score #clone_ok se.v run function space_editor:transform/clone_one_macro with storage space_editor:document job",
         "execute unless score #clone_ok se.v matches 1 run return run function space_editor:transform/fail_clone",
+        "function space_editor:special/clear_target_display with storage space_editor:document job",
         'execute unless data storage space_editor:runtime transformState{kind:"none"} run function space_editor:transform/clear_target with storage space_editor:runtime transformState',
         "scoreboard players set #state_ok se.v 1",
         'execute if data storage space_editor:runtime transformState{kind:"stairs"} store success score #state_ok se.v run function space_editor:transform/apply_stairs with storage space_editor:runtime transformState',
         'execute if data storage space_editor:runtime transformState{kind:"slab"} store success score #state_ok se.v run function space_editor:transform/apply_slab with storage space_editor:runtime transformState',
+        'execute if data storage space_editor:runtime transformState{kind:"fence",flipY:0b} store success score #state_ok se.v run function space_editor:transform/apply_fence with storage space_editor:runtime transformState',
+        'execute if data storage space_editor:runtime transformState{kind:"fence",flipY:1b} store success score #state_ok se.v run function space_editor:transform/apply_special_fence with storage space_editor:runtime transformState',
         'execute if data storage space_editor:runtime transformState{kind:"connections"} store success score #state_ok se.v run function space_editor:transform/apply_connections with storage space_editor:runtime transformState',
-        'execute if data storage space_editor:runtime transformState{kind:"wall"} store success score #state_ok se.v run function space_editor:transform/apply_wall with storage space_editor:runtime transformState',
+        'execute if data storage space_editor:runtime transformState{kind:"wall",flipY:0b} store success score #state_ok se.v run function space_editor:transform/apply_wall with storage space_editor:runtime transformState',
+        'execute if data storage space_editor:runtime transformState{kind:"wall",flipY:1b} store success score #state_ok se.v run function space_editor:transform/apply_special_wall with storage space_editor:runtime transformState',
         'execute if data storage space_editor:runtime transformState{kind:"axis"} store success score #state_ok se.v run function space_editor:transform/apply_axis with storage space_editor:runtime transformState',
         'execute if data storage space_editor:runtime transformState{kind:"axis_waterlogged"} store success score #state_ok se.v run function space_editor:transform/apply_axis_waterlogged with storage space_editor:runtime transformState',
         "execute unless score #state_ok se.v matches 1 run return run function space_editor:transform/fail_state_apply",
@@ -473,6 +493,7 @@ def main() -> None:
     fn("transform/state_capture", [
         '$execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_stairs run function space_editor:transform/capture_stairs with storage space_editor:document job',
         '$execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_slabs run function space_editor:transform/capture_slab with storage space_editor:document job',
+        '$execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_fences run function space_editor:transform/capture_fence with storage space_editor:document job',
         '$execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_connections run function space_editor:transform/capture_connections with storage space_editor:document job',
         '$execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_walls run function space_editor:transform/capture_wall with storage space_editor:document job',
         '$execute in $(sourceDimension) positioned $(blockSourceX) $(blockSourceY) $(blockSourceZ) if block ~ ~ ~ #space_editor:transform_axis run function space_editor:transform/capture_axis with storage space_editor:document job',
@@ -532,12 +553,23 @@ def main() -> None:
         "data modify storage space_editor:runtime transformState.targetDimension set from storage space_editor:document job.targetDimension",
         "function space_editor:transform/read_item with storage space_editor:document job",
     ])
+    fn("transform/capture_fence", [
+        'data modify storage space_editor:runtime transformState set value {kind:"fence",north:"false",east:"false",south:"false",west:"false",waterlogged:"false",flipY:0b,x:0,y:0,z:0}',
+        *[f'execute if block ~ ~ ~ #space_editor:transform_fences[{prop}=true] run data modify storage space_editor:runtime transformState.{prop} set value "true"' for prop in ("north", "east", "south", "west")],
+        *[f'execute if block ~ ~ ~ #space_editor:transform_fences[waterlogged={value}] run data modify storage space_editor:runtime transformState.waterlogged set value "{value}"' for value in ("true", "false")],
+        "function space_editor:transform/rotate_connections",
+        "data modify storage space_editor:runtime transformState.flipY set from storage space_editor:document job.flipY",
+        *[f"data modify storage space_editor:runtime transformState.{axis} set from storage space_editor:document job.blockTarget{axis.upper()}" for axis in "xyz"],
+        "data modify storage space_editor:runtime transformState.targetDimension set from storage space_editor:document job.targetDimension",
+        "function space_editor:transform/read_item with storage space_editor:document job",
+    ])
     fn("transform/capture_wall", [
-        'data modify storage space_editor:runtime transformState set value {kind:"wall",north:"none",east:"none",south:"none",west:"none",up:"true",waterlogged:"false",x:0,y:0,z:0}',
+        'data modify storage space_editor:runtime transformState set value {kind:"wall",north:"none",east:"none",south:"none",west:"none",up:"true",waterlogged:"false",flipY:0b,x:0,y:0,z:0}',
         *[f'execute if block ~ ~ ~ #space_editor:transform_walls[{direction}={value}] run data modify storage space_editor:runtime transformState.{direction} set value "{value}"' for direction in ("north", "east", "south", "west") for value in ("none", "low", "tall")],
         *[f'execute if block ~ ~ ~ #space_editor:transform_walls[up={value}] run data modify storage space_editor:runtime transformState.up set value "{value}"' for value in ("true", "false")],
         *[f'execute if block ~ ~ ~ #space_editor:transform_walls[waterlogged={value}] run data modify storage space_editor:runtime transformState.waterlogged set value "{value}"' for value in ("true", "false")],
         "function space_editor:transform/rotate_connections",
+        "data modify storage space_editor:runtime transformState.flipY set from storage space_editor:document job.flipY",
         *[f"data modify storage space_editor:runtime transformState.{axis} set from storage space_editor:document job.blockTarget{axis.upper()}" for axis in "xyz"],
         "data modify storage space_editor:runtime transformState.targetDimension set from storage space_editor:document job.targetDimension",
         "function space_editor:transform/read_item with storage space_editor:document job",
@@ -581,11 +613,110 @@ def main() -> None:
     ])
     fn("transform/apply_stairs", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[facing=$(facing),half=$(half),shape=$(shape),waterlogged=$(waterlogged)] strict'])
     fn("transform/apply_slab", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[type=$(type),waterlogged=$(waterlogged)] strict'])
+    fn("transform/apply_fence", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[north=$(north),east=$(east),south=$(south),west=$(west),waterlogged=$(waterlogged)] strict'])
     fn("transform/apply_connections", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[north=$(north),east=$(east),south=$(south),west=$(west),waterlogged=$(waterlogged)] strict'])
     fn("transform/clear_target", ['$execute in $(targetDimension) run setblock $(x) $(y) $(z) minecraft:air strict'])
     fn("transform/apply_wall", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[north=$(north),east=$(east),south=$(south),west=$(west),up=$(up),waterlogged=$(waterlogged)] strict'])
+    fn("transform/apply_special_fence", [
+        f'$execute in $(targetDimension) run setblock $(x) $(y) $(z) {COLLISION_CARRIERS["fence"]}[north=$(north),east=$(east),south=$(south),west=$(west),waterlogged=$(waterlogged)] strict',
+        "data modify storage space_editor:runtime transformState.displayEast set from storage space_editor:runtime transformState.west",
+        "data modify storage space_editor:runtime transformState.displayWest set from storage space_editor:runtime transformState.east",
+        "function space_editor:special/spawn_fence with storage space_editor:runtime transformState",
+        "function space_editor:special/register with storage space_editor:runtime transformState",
+        "return 1",
+    ])
+    fn("transform/apply_special_wall", [
+        f'$execute in $(targetDimension) run setblock $(x) $(y) $(z) {COLLISION_CARRIERS["wall"]}[north=$(north),east=$(east),south=$(south),west=$(west),up=$(up),waterlogged=$(waterlogged)] strict',
+        "data modify storage space_editor:runtime transformState.displayEast set from storage space_editor:runtime transformState.west",
+        "data modify storage space_editor:runtime transformState.displayWest set from storage space_editor:runtime transformState.east",
+        "function space_editor:special/spawn_wall with storage space_editor:runtime transformState",
+        "function space_editor:special/register with storage space_editor:runtime transformState",
+        "return 1",
+    ])
     fn("transform/apply_axis", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[axis=$(axis)] strict'])
     fn("transform/apply_axis_waterlogged", ['$return run execute in $(targetDimension) run setblock $(x) $(y) $(z) $(block)[axis=$(axis),waterlogged=$(waterlogged)] strict'])
+
+    fn("special/spawn_fence", [
+        '$execute in $(targetDimension) positioned $(x) $(y) $(z) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.special","space_editor.special_fence","space_editor.special_new","space_editor.special_pending"],block_state:{Name:"$(block)",Properties:{north:"$(north)",east:"$(displayEast)",south:"$(south)",west:"$(displayWest)",waterlogged:"$(waterlogged)"}},transformation:{translation:[0.5f,1f,-0.5f],scale:[-1f,-1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},view_range:4f,width:2f,height:2f}',
+    ])
+    fn("special/spawn_wall", [
+        '$execute in $(targetDimension) positioned $(x) $(y) $(z) run summon minecraft:block_display ~ ~ ~ {Tags:["space_editor.special","space_editor.special_wall","space_editor.special_new","space_editor.special_pending"],block_state:{Name:"$(block)",Properties:{north:"$(north)",east:"$(displayEast)",south:"$(south)",west:"$(displayWest)",up:"$(up)",waterlogged:"$(waterlogged)"}},transformation:{translation:[0.5f,1f,-0.5f],scale:[-1f,-1f,1f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},view_range:4f,width:2f,height:2f}',
+    ])
+
+    fn("special/register", [
+        "execute store result score #special_id se.v run data get storage space_editor:document nextSpecialId 1",
+        "data modify storage space_editor:runtime specialRecord set from storage space_editor:runtime transformState",
+        "execute store result storage space_editor:runtime specialRecord.id int 1 run scoreboard players get #special_id se.v",
+        '$execute in $(targetDimension) positioned $(x) $(y) $(z) run scoreboard players operation @e[type=minecraft:block_display,tag=space_editor.special_new,distance=..0.1] se.sid = #special_id se.v',
+        '$execute if data storage space_editor:runtime transformState{waterlogged:"true"} in $(targetDimension) positioned $(x) $(y) $(z) run tag @e[type=minecraft:block_display,tag=space_editor.special_new,distance=..0.1] add space_editor.special_water',
+        '$execute in $(targetDimension) positioned $(x) $(y) $(z) run tag @e[type=minecraft:block_display,tag=space_editor.special_new,distance=..0.1] remove space_editor.special_new',
+        "data modify storage space_editor:document specials append from storage space_editor:runtime specialRecord",
+        "scoreboard players add #special_id se.v 1",
+        "execute store result storage space_editor:document nextSpecialId int 1 run scoreboard players get #special_id se.v",
+    ])
+    fn("special/clear_target_display", [
+        '$execute in $(targetDimension) positioned $(blockTargetX) $(blockTargetY) $(blockTargetZ) as @e[type=minecraft:block_display,tag=space_editor.special,distance=..0.1] run function space_editor:special/remove_entity',
+    ])
+    fn("special/remove_entity", [
+        "scoreboard players operation #special_id se.v = @s se.sid",
+        "execute store result storage space_editor:runtime specialDelete.id int 1 run scoreboard players get #special_id se.v",
+        "function space_editor:special/remove_record with storage space_editor:runtime specialDelete",
+        "kill @s",
+    ])
+    fn("special/remove_record", ['$data remove storage space_editor:document specials[{id:$(id)}]'])
+    fn("special/delete_at", [
+        "scoreboard players set #special_water se.v 0",
+        f'execute if block ~ ~ ~ {COLLISION_CARRIERS["fence"]}[waterlogged=true] run scoreboard players set #special_water se.v 1',
+        f'execute if block ~ ~ ~ {COLLISION_CARRIERS["wall"]}[waterlogged=true] run scoreboard players set #special_water se.v 1',
+        "execute as @e[type=minecraft:block_display,tag=space_editor.special,distance=..0.1] run function space_editor:special/remove_entity",
+        "execute if score #special_water se.v matches 1 run setblock ~ ~ ~ minecraft:water",
+        "execute unless score #special_water se.v matches 1 run setblock ~ ~ ~ minecraft:air",
+        "function space_editor:special/sync_neighbors",
+        message("反転特殊ブロックを表示と当たり判定ごと削除しました。", "yellow"),
+        "return 1",
+    ])
+    fn("special/sync_neighbors", [
+        *[f"execute positioned {offset} as @e[type=minecraft:block_display,tag=space_editor.special,distance=..0.1] at @s run function space_editor:special/sync_entity" for offset in ("~1 ~ ~", "~-1 ~ ~", "~ ~ ~1", "~ ~ ~-1")],
+    ])
+    sync_entity: list[str] = []
+    display_direction = {"north": "north", "east": "west", "south": "south", "west": "east"}
+    for direction in ("north", "east", "south", "west"):
+        display_prop = display_direction[direction]
+        for value in ("true", "false"):
+            sync_entity.append(f'execute if entity @s[tag=space_editor.special_fence] if block ~ ~ ~ {COLLISION_CARRIERS["fence"]}[{direction}={value}] run data modify entity @s block_state.Properties.{display_prop} set value "{value}"')
+        for value in ("none", "low", "tall"):
+            sync_entity.append(f'execute if entity @s[tag=space_editor.special_wall] if block ~ ~ ~ {COLLISION_CARRIERS["wall"]}[{direction}={value}] run data modify entity @s block_state.Properties.{display_prop} set value "{value}"')
+    for value in ("true", "false"):
+        sync_entity.append(f'execute if entity @s[tag=space_editor.special_wall] if block ~ ~ ~ {COLLISION_CARRIERS["wall"]}[up={value}] run data modify entity @s block_state.Properties.up set value "{value}"')
+    fn("special/sync_entity", sync_entity)
+    fn("special/orphan", [
+        "function space_editor:special/sync_neighbors",
+        "function space_editor:special/remove_entity",
+    ])
+    fn("special/cleanup", [
+        "execute in minecraft:overworld as @e[type=minecraft:block_display,tag=space_editor.special] at @s unless block ~ ~ ~ #space_editor:special_collision run function space_editor:special/orphan",
+        "execute in minecraft:the_nether as @e[type=minecraft:block_display,tag=space_editor.special] at @s unless block ~ ~ ~ #space_editor:special_collision run function space_editor:special/orphan",
+        "execute in minecraft:the_end as @e[type=minecraft:block_display,tag=space_editor.special] at @s unless block ~ ~ ~ #space_editor:special_collision run function space_editor:special/orphan",
+        "schedule function space_editor:special/cleanup 1s replace",
+    ])
+    fn("special/cancel_one", [
+        "scoreboard players set #special_water se.v 0",
+        "execute if entity @s[tag=space_editor.special_water] run scoreboard players set #special_water se.v 1",
+        "execute if score #special_water se.v matches 1 run setblock ~ ~ ~ minecraft:water",
+        "execute unless score #special_water se.v matches 1 run setblock ~ ~ ~ minecraft:air",
+        "function space_editor:special/sync_neighbors",
+        "function space_editor:special/remove_entity",
+    ])
+    fn("special/cancel_pending", [
+        "execute in minecraft:overworld as @e[type=minecraft:block_display,tag=space_editor.special_pending] at @s run function space_editor:special/cancel_one",
+        "execute in minecraft:the_nether as @e[type=minecraft:block_display,tag=space_editor.special_pending] at @s run function space_editor:special/cancel_one",
+        "execute in minecraft:the_end as @e[type=minecraft:block_display,tag=space_editor.special_pending] at @s run function space_editor:special/cancel_one",
+    ])
+    fn("special/commit_pending", [
+        "execute in minecraft:overworld run tag @e[type=minecraft:block_display,tag=space_editor.special_pending] remove space_editor.special_pending",
+        "execute in minecraft:the_nether run tag @e[type=minecraft:block_display,tag=space_editor.special_pending] remove space_editor.special_pending",
+        "execute in minecraft:the_end run tag @e[type=minecraft:block_display,tag=space_editor.special_pending] remove space_editor.special_pending",
+    ])
 
     fn("job/finish", [
         "function space_editor:job/unforceload_archive with storage space_editor:document job",
@@ -594,6 +725,7 @@ def main() -> None:
         "function space_editor:paste/finalize",
     ])
     fn("job/cancel", [
+        'execute if data storage space_editor:document job{type:"paste"} run function space_editor:special/cancel_pending',
         'execute if data storage space_editor:document job{state:"running"} run function space_editor:job/unforceload_archive with storage space_editor:document job',
         'execute if data storage space_editor:document job{state:"paused"} run function space_editor:job/unforceload_archive with storage space_editor:document job',
         'execute if data storage space_editor:document job{state:"error"} run function space_editor:job/unforceload_archive with storage space_editor:document job',
@@ -607,6 +739,7 @@ def main() -> None:
         message("Jobを中断しました。コピー元と既存Templateは変更していません。", "yellow"),
     ])
     fn("paste/finalize", [
+        "function space_editor:special/commit_pending",
         "execute store result score #action se.v run data get storage space_editor:document nextActionId 1",
         'data modify storage space_editor:runtime action set value {id:0,type:"template_paste",templateId:0,version:1,targetDimension:"",origin:[I;0,0,0],rotation:0,flipY:0b,skippedBlocks:0,order:0}',
         "execute store result storage space_editor:runtime action.id int 1 run scoreboard players get #action se.v",

@@ -26,6 +26,7 @@ try:
 except EditorBlockConfigError as error:
     raise SystemExit(f"Error: {error}") from None
 DISPLAY_BLOCKS = BLOCK_CONFIG["displayBlocks"]
+COLLISION_CARRIERS = BLOCK_CONFIG["collisionCarriers"]
 PALETTES = {
     name: (palette["normalBlock"], palette["carrierBlock"], palette["sourceTexture"])
     for name, palette in BLOCK_CONFIG["maskablePalettes"].items()
@@ -525,6 +526,10 @@ def managed_blockstates() -> dict[Path, str]:
         blockstate_relative_path(carrier): f"editor:block/{name}_maskable"
         for name, (_, carrier, _) in PALETTES.items()
     })
+    managed.update({
+        blockstate_relative_path(COLLISION_CARRIERS["fence"]): "editor:block/collision_fence",
+        blockstate_relative_path(COLLISION_CARRIERS["wall"]): "editor:block/collision_wall",
+    })
     return managed
 
 
@@ -649,6 +654,8 @@ def sync_live_resources():
     for name in ("mask_body", "selection", "guide"):
         files += [Path(f"assets/editor/textures/block/{name}.png"),
                   Path(f"assets/editor/models/block/{name}.json")]
+    files += [Path("assets/editor/models/block/collision_fence.json"),
+              Path("assets/editor/models/block/collision_wall.json")]
     files += list(desired_blockstates)
     for name in files:
         source, destination = RP / name, ROOT / name
@@ -726,6 +733,10 @@ def build_resources():
     Image.new("RGBA", (32, 32), (255, 255, 255, 1)).save(dest)
     js(RP / "assets/editor/models/block/mask_body.json", {"textures": {"particle": "editor:block/mask_body", "all": "editor:block/mask_body"}, "elements": [{"from": [0, 0, 0], "to": [16, 16, 16], "shade": False, "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]} for face in ("north", "south", "east", "west", "up", "down")}}]})
     build_preview_resources()
+    js(RP / "assets/editor/models/block/collision_fence.json", {
+        "textures": {"particle": "minecraft:block/cherry_planks"}, "elements": []})
+    js(RP / "assets/editor/models/block/collision_wall.json", {
+        "textures": {"particle": "minecraft:block/sandstone"}, "elements": []})
     build_block_assignments()
 
 

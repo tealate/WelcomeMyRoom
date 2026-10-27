@@ -12,6 +12,7 @@ PROPERTY_REPORT = ROOT / "build/test-server/block-properties-26.1.tsv"
 RESOURCE_ID = re.compile(r"^[a-z0-9_.-]+:[a-z0-9_./-]+$")
 PALETTE_NAME = re.compile(r"^[a-z0-9_]+$")
 DISPLAY_KEYS = {"selection", "guide", "selectionCandidate", "maskBody"}
+COLLISION_KEYS = {"fence", "wall"}
 PALETTE_KEYS = {"normalBlock", "carrierBlock", "sourceTexture"}
 
 
@@ -60,14 +61,28 @@ def _registry_ids() -> set[str] | None:
     return ids or None
 
 
+def _registry_properties() -> dict[str, set[str]]:
+    if not PROPERTY_REPORT.exists():
+        return {}
+    result: dict[str, set[str]] = {}
+    for raw in PROPERTY_REPORT.read_text(encoding="utf-8").splitlines():
+        if not raw.strip():
+            continue
+        block_id, properties, *_ = raw.split("\t")
+        result[block_id] = {part.split("=", 1)[0] for part in properties.split(",") if part}
+    return result
+
+
 def validate_editor_block_config(raw: object, *, registry_ids: set[str] | None = None,
                                  check_textures: bool = True) -> dict:
-    data = _expect_keys(raw, {"schemaVersion", "displayBlocks", "maskablePalettes"}, "root")
+    data = _expect_keys(raw, {"schemaVersion", "displayBlocks", "collisionCarriers", "maskablePalettes"}, "root")
     if data["schemaVersion"] != 1:
         raise EditorBlockConfigError("schemaVersion must be 1")
 
     displays_raw = _expect_keys(data["displayBlocks"], DISPLAY_KEYS, "displayBlocks")
     displays = {name: _resource_id(value, f"displayBlocks.{name}") for name, value in displays_raw.items()}
+    collisions_raw = _expect_keys(data["collisionCarriers"], COLLISION_KEYS, "collisionCarriers")
+    collisions = {name: _resource_id(value, f"collisionCarriers.{name}") for name, value in collisions_raw.items()}
 
     palettes_raw = data["maskablePalettes"]
     if not isinstance(palettes_raw, dict) or not palettes_raw:
@@ -80,6 +95,7 @@ def validate_editor_block_config(raw: object, *, registry_ids: set[str] | None =
         palettes[name] = {key: _resource_id(value, f"maskablePalettes.{name}.{key}") for key, value in palette.items()}
 
     assignments: list[tuple[str, str]] = [(f"displayBlocks.{name}", block) for name, block in displays.items()]
+    assignments += [(f"collisionCarriers.{name}", block) for name, block in collisions.items()]
     for name, palette in palettes.items():
         assignments += [
             (f"maskablePalettes.{name}.normalBlock", palette["normalBlock"]),
@@ -99,6 +115,18 @@ def validate_editor_block_config(raw: object, *, registry_ids: set[str] | None =
         if missing:
             raise EditorBlockConfigError(f"blocks not found in the Minecraft 26.1 registry: {', '.join(missing)}")
 
+    properties = _registry_properties()
+    required_properties = {
+        "fence": {"north", "east", "south", "west", "waterlogged"},
+        "wall": {"north", "east", "south", "west", "up", "waterlogged"},
+    }
+    for role, required in required_properties.items():
+        actual = properties.get(collisions[role])
+        if actual is not None and actual != required:
+            raise EditorBlockConfigError(
+                f"collisionCarriers.{role} must use a block with properties: {', '.join(sorted(required))}"
+            )
+
     if check_textures:
         missing_textures = []
         for name, palette in palettes.items():
@@ -108,7 +136,7 @@ def validate_editor_block_config(raw: object, *, registry_ids: set[str] | None =
         if missing_textures:
             raise EditorBlockConfigError("source textures not found: " + "; ".join(missing_textures))
 
-    return {"schemaVersion": 1, "displayBlocks": displays, "maskablePalettes": palettes}
+    return {"schemaVersion": 1, "displayBlocks": displays, "collisionCarriers": collisions, "maskablePalettes": palettes}
 
 
 def load_editor_block_config(path: Path = CONFIG_PATH, *, check_textures: bool = True) -> dict:

@@ -113,7 +113,7 @@ public class SpaceEditorStage3GameTest {
         cmd("data modify storage space_editor:document templates set value []");
         cmd("data modify storage space_editor:document actions set value []");
         cmd("data modify storage space_editor:document nextActionId set value 1");
-        cmd("forceload add "+AX+" "+AZ+" "+(AX+200)+" "+(AZ+8));
+        cmd("forceload add "+AX+" "+AZ+" "+(AX+240)+" "+(AZ+8));
         for(int y=0;y<2;y++)for(int z=0;z<2;z++)for(int x=0;x<2;x++)
             cmd("setblock "+(AX+x)+" "+(AY+y)+" "+(AZ+z)+" "+CUBE[x+2*(z+2*y)]);
         cmd("setblock "+(AX+64)+" "+AY+" "+AZ+" minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false] strict");
@@ -125,13 +125,16 @@ public class SpaceEditorStage3GameTest {
         cmd("fill "+(AX+160)+" "+AY+" "+AZ+" "+(AX+164)+" "+(AY+2)+" "+(AZ+4)+" minecraft:stone");
         for(int x=0;x<STAIR_SHAPES.length;x++)
             cmd("setblock "+(AX+192+x)+" "+AY+" "+AZ+" minecraft:oak_stairs[facing=north,half=bottom,shape="+STAIR_SHAPES[x].getSerializedName()+",waterlogged=false] strict");
+        cmd("setblock "+(AX+224)+" "+AY+" "+AZ+" minecraft:oak_fence[north=true,east=false,south=true,west=false,waterlogged=false] strict");
+        cmd("setblock "+(AX+225)+" "+AY+" "+AZ+" minecraft:cobblestone_wall[north=low,east=none,south=tall,west=none,up=true,waterlogged=false] strict");
         cmd("data modify storage space_editor:document templates set value ["+
             "{id:1,version:1,archive:{dimension:\"minecraft:overworld\",x:"+AX+",y:"+AY+",z:"+AZ+"},size:[I;2,2,2]},"+
             "{id:2,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+64)+",y:"+AY+",z:"+AZ+"},size:[I;3,1,1]},"+
             "{id:3,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+96)+",y:"+AY+",z:"+AZ+"},size:[I;2,1,1]},"+
             "{id:4,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+128)+",y:"+AY+",z:"+AZ+"},size:[I;1,1,1]},"+
             "{id:5,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+160)+",y:"+AY+",z:"+AZ+"},size:[I;5,3,5]},"+
-            "{id:6,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+192)+",y:"+AY+",z:"+AZ+"},size:[I;5,1,1]}]");
+            "{id:6,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+192)+",y:"+AY+",z:"+AZ+"},size:[I;5,1,1]},"+
+            "{id:7,version:1,archive:{dimension:\"minecraft:overworld\",x:"+(AX+224)+",y:"+AY+",z:"+AZ+"},size:[I;2,1,1]}]");
         player=h.makeMockServerPlayerInLevel(); player.setNoGravity(true); player.setPos(0.5,TY+3,0.5);
         startPaste(1,ROT[0],FLIP[0],0,TY,0);
     }
@@ -219,10 +222,47 @@ public class SpaceEditorStage3GameTest {
                         else {
                             check(document().getListOrEmpty("actions").size()==16,"stair shape pastes persisted actions");
                             verifyPreviewAndMoveTools();
-                            System.out.println("SPACE_EDITOR_STAGE3_RUNTIME_PASS: 8 coordinate states, all stair shapes at 4 rotations, delete-cancelled paste preview, one-block preview/region move, reload-resumed cursor, unsupported skip warning, shift controls");
-                            finished=true;h.succeed();
+                            startPaste(7,90,1,110,TY,0); step=6; waitTicks=0;
                         }
                     } else if(waitTicks>20)throw new AssertionError("stair shape rotation timeout "+stairPasteIndex);
+                } else if(step==6){
+                    tickJob(); waitTicks++;
+                    if(!jobState().equals("running")){
+                        var fencePos=new BlockPos(110,TY,0); var wallPos=new BlockPos(110,TY,1);
+                        var fence=helper.getLevel().getBlockState(fencePos); var wall=helper.getLevel().getBlockState(wallPos);
+                        check(fence.is(Blocks.CHERRY_FENCE) && fence.getValue(BlockStateProperties.EAST) && fence.getValue(BlockStateProperties.WEST),"FlipY fence collision carrier and rotated connections");
+                        check(wall.is(Blocks.SANDSTONE_WALL)
+                                && wall.getValue(BlockStateProperties.EAST_WALL)==WallSide.LOW
+                                && wall.getValue(BlockStateProperties.WEST_WALL)==WallSide.TALL,
+                                "FlipY wall collision carrier and rotated connections actual="+wall);
+                        cmd("data remove storage space_editor:runtime specialTest");
+                        cmd("execute positioned 110 "+TY+" 0 if entity @e[type=minecraft:block_display,tag=space_editor.special_fence,distance=..0.1] run data modify storage space_editor:runtime specialTest.fence set value 1b");
+                        cmd("execute positioned 110 "+TY+" 1 if entity @e[type=minecraft:block_display,tag=space_editor.special_wall,distance=..0.1] run data modify storage space_editor:runtime specialTest.wall set value 1b");
+                        cmd("execute positioned 110 "+TY+" 0 run data modify storage space_editor:runtime specialTest.visual set from entity @e[type=minecraft:block_display,tag=space_editor.special_fence,distance=..0.1,limit=1] block_state.Name");
+                        cmd("execute positioned 110 "+TY+" 1 run data modify storage space_editor:runtime specialTest.wallVisual set from entity @e[type=minecraft:block_display,tag=space_editor.special_wall,distance=..0.1,limit=1] block_state.Properties");
+                        cmd("execute positioned 110 "+TY+" 0 store result storage space_editor:runtime specialTest.scaleX int 1 run data get entity @e[type=minecraft:block_display,tag=space_editor.special_fence,distance=..0.1,limit=1] transformation.scale[0] 1");
+                        cmd("execute positioned 110 "+TY+" 0 store result storage space_editor:runtime specialTest.scaleY int 1 run data get entity @e[type=minecraft:block_display,tag=space_editor.special_fence,distance=..0.1,limit=1] transformation.scale[1] 1");
+                        cmd("execute positioned 110 "+TY+" 0 store result storage space_editor:runtime specialTest.translationX int 1 run data get entity @e[type=minecraft:block_display,tag=space_editor.special_fence,distance=..0.1,limit=1] transformation.translation[0] 10");
+                        cmd("execute positioned 110 "+TY+" 0 store result storage space_editor:runtime specialTest.translationZ int 1 run data get entity @e[type=minecraft:block_display,tag=space_editor.special_fence,distance=..0.1,limit=1] transformation.translation[2] 10");
+                        cmd("execute positioned 110 "+TY+" 0 store success storage space_editor:runtime specialTest.fenceHasBrightness byte 1 run data get entity @e[type=minecraft:block_display,tag=space_editor.special_fence,distance=..0.1,limit=1] brightness");
+                        cmd("execute positioned 110 "+TY+" 1 store success storage space_editor:runtime specialTest.wallHasBrightness byte 1 run data get entity @e[type=minecraft:block_display,tag=space_editor.special_wall,distance=..0.1,limit=1] brightness");
+                        var specialTest=runtime().getCompoundOrEmpty("specialTest");
+                        check(specialTest.getBooleanOr("fence",false) && specialTest.getBooleanOr("wall",false),"FlipY special displays spawned");
+                        check(specialTest.getStringOr("visual","").equals("minecraft:oak_fence")
+                                && specialTest.getIntOr("scaleX",0)==-1 && specialTest.getIntOr("scaleY",0)==-1,
+                                "source visual and front-face-preserving vertical mirror persisted");
+                        check(specialTest.getIntOr("translationX",0)==5 && specialTest.getIntOr("translationZ",0)==-5,"block display centered on collision cell");
+                        check(!specialTest.getBooleanOr("fenceHasBrightness",true) && !specialTest.getBooleanOr("wallHasBrightness",true),"special displays use ambient world lighting");
+                        var wallVisual=specialTest.getCompoundOrEmpty("wallVisual");
+                        check(wallVisual.getStringOr("east","").equals("tall") && wallVisual.getStringOr("west","").equals("low"),"display state compensates horizontal axis reflection");
+                        check(document().getListOrEmpty("specials").size()==2,"special composite records persisted");
+                        pcmd("execute positioned 110 "+TY+" 0 run function space_editor:special/delete_at");
+                        check(helper.getLevel().getBlockState(fencePos).isAir() && document().getListOrEmpty("specials").size()==1,"delete wand path removed fence display, collision, and record");
+                        pcmd("execute positioned 110 "+TY+" 1 run function space_editor:special/delete_at");
+                        check(helper.getLevel().getBlockState(wallPos).isAir() && document().getListOrEmpty("specials").isEmpty(),"delete wand path removed wall display, collision, and record");
+                        System.out.println("SPACE_EDITOR_STAGE3_RUNTIME_PASS: 8 coordinate states, all stair shapes at 4 rotations, FlipY fence/wall composite collision displays and deletion, delete-cancelled paste preview, one-block preview/region move, reload-resumed cursor, unsupported skip warning, shift controls");
+                        finished=true;h.succeed();
+                    } else if(waitTicks>20)throw new AssertionError("FlipY special fence/wall timeout");
                 }
             }catch(Throwable ex){finished=true;ex.printStackTrace();h.fail(ex.getMessage());}
         });

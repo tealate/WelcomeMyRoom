@@ -6,6 +6,10 @@
     "selectionCandidate": "minecraft:orange_glazed_terracotta",
     "maskBody": "minecraft:waxed_oxidized_cut_copper"
   },
+  "collisionCarriers": {
+    "fence": "minecraft:cherry_fence",
+    "wall": "minecraft:sandstone_wall"
+  },
   "maskablePalettes": {
     "stone": {
       "normalBlock": "minecraft:stone",

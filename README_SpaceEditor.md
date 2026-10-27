@@ -41,7 +41,14 @@
 - 変換対応は通常の完全立方体、階段、ハーフブロック、柵・板ガラス、塀、柱系（`axis`）です。
   未対応の向き・形状・BlockEntityは、その配置先を変更せずスキップして残りを続行します。
   事前走査時と完了時にスキップ数を警告し、Actionにも`skippedBlocks`を保存します。
-  柵・板ガラス・塀のFlipYも、衝突形状を正しく反転できないためスキップ対象です。
+  板ガラス・鉄格子などの接続ブロックのFlipYは、衝突形状を正しく反転できないためスキップ対象です。
+- **木の柵と石の塀のFlipY**は複合ブロックとして対応しています。見た目は上下反転した
+  `block_display`、当たり判定は透明化した実ブロックを使用します。初期設定では木の柵に
+  `cherry_fence`、石の塀に`sandstone_wall`を割り当てています。削除棒で直接見ると、表示・
+  当たり判定・保存レコードをまとめて削除します。隣接する複合柵・塀の接続表示も同期します。
+- 当たり判定用ブロックは`space_editor_blocks.json`の`collisionCarriers.fence` / `wall`で変更できます。
+  それぞれ同じ状態プロパティを持つfence / wallから選んでください。互換性のないブロックは生成時に拒否します。
+  割り当て中の2ブロックはリソースパック全体で透明になるため、通常の建材には使用しないでください。
 - Job操作：`/function space_editor:job/pause`、`resume`、`retry`、`cancel`。
 
 ブロック操作は整数のブロック境界に揃ったRegionだけ受け付けます。01の0.1刻み伸縮で境界が小数に
@@ -79,7 +86,8 @@ Minecraft Java Edition **26.1** 用、1人編集の空間制作ツールです�
 ### 表示・マスク用ブロックの割り当て
 
 `space_editor_blocks.json`を、Space Editorが専用表示に借りるブロックの正本として使います。
-`displayBlocks`では範囲枠・補助枠・1ブロック候補・マスク本体を、
+`displayBlocks`では範囲枠・補助枠・1ブロック候補・マスク本体を、`collisionCarriers`では
+反転柵・塀の透明な当たり判定用ブロックを、
 `maskablePalettes`では通常ブロック・マスク表示用の代理ブロック・元テクスチャを変更できます。
 
 設定変更後は、次を順番に実行してください。
@@ -291,7 +299,7 @@ python editor_data.py pack level.json --out SpaceEditor-Level.zip
 - `tools/test_space_editor.ps1`：公式Java 25＋26.1サーバーライブラリを使う隔離GameTest。
 - `tools/package_space_editor.py`：アセット検証、配布ZIP、変更ファイル一覧を生成。
 
-現在はルート`assets/`に専用モデル・専用テクスチャ・8種類のblockstateを反映しています。
+現在はルート`assets/`に専用モデル・専用テクスチャ・10種類のblockstateを反映しています。
 既存の元テクスチャ、シェーダー、ルート`pack.mcmeta`は変更していません。
 `space_editor_resources/`は生成元の補助フォルダで、そこだけを変更してもF3+Tでは反映されません。
 見た目の生成は`build_space_editor.py`、functionの直接編集は`space_editor_datapack/`で行います。

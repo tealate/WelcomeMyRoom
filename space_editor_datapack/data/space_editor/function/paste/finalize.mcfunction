@@ -1,3 +1,4 @@
+function space_editor:special/commit_pending
 execute store result score #action se.v run data get storage space_editor:document nextActionId 1
 data modify storage space_editor:runtime action set value {id:0,type:"template_paste",templateId:0,version:1,targetDimension:"",origin:[I;0,0,0],rotation:0,flipY:0b,skippedBlocks:0,order:0}
 execute store result storage space_editor:runtime action.id int 1 run scoreboard players get #action se.v

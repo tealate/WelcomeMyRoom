@@ -1,3 +1,4 @@
+execute if data storage space_editor:document job{type:"paste"} run function space_editor:special/cancel_pending
 execute if data storage space_editor:document job{state:"running"} run function space_editor:job/unforceload_archive with storage space_editor:document job
 execute if data storage space_editor:document job{state:"paused"} run function space_editor:job/unforceload_archive with storage space_editor:document job
 execute if data storage space_editor:document job{state:"error"} run function space_editor:job/unforceload_archive with storage space_editor:document job
