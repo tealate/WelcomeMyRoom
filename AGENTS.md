@@ -77,9 +77,13 @@
 - Parse every edited JSON file before reporting completion.
 - When changing generated `mcfunction` behavior, edit the generator, regenerate
   the live output, run `ValidateMinecraft`, and run the GameTest for the latest
-  affected Space Editor stage. A successful parse alone is not enough.
-- Keep stage-specific Java GameTest harnesses and PowerShell runners in
-  `tools/`; they are development checks, not runtime dependencies.
+  affected Space Editor stage. A successful parse alone is not enough because
+  valid commands can still fail to create entities or mutate runtime state.
+- Keep stage-specific Java GameTest harnesses and their PowerShell runners in
+  `tools/`. They are development checks only and are not runtime dependencies
+  of the resource pack or datapack.
+- If validation is intentionally skipped for a particular experiment, retain
+  the harness and report the result as unverified rather than complete.
 - For PNG edits, rely on the script's save-before-replace pixel verification.
 - After texture processing, run the same command with `--dry-run`; the selected
   textures should report `already-translucent` and receive no further changes.

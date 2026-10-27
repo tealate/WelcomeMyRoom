@@ -10,3 +10,4 @@ tellraw @s {"text": "[Space Editor] Job: /function space_editor:job/pause | resu
 tellraw @s {"text": "[Space Editor] 再発行: /function space_editor:template/reissue {id:1}", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] Paste変換: 棒を持った時の正面を基準にShift＋左/右で90度回転、Shift＋上/下でFlipY。", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] 変換設定は棒を持ち替えると0度 / FlipY OFFへ戻ります。キャンセル: /function space_editor:paste/cancel", "color": "aqua"}
+tellraw @s {"text": "[Space Editor] Mask: Mask棒でRegionを右クリック / 詳細: /function space_editor:mask/help", "color": "aqua"}

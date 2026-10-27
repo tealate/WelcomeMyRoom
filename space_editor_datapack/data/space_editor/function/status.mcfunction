@@ -4,3 +4,4 @@ tellraw @s [{text:"Selected: ",color:"yellow"},{nbt:"selectedId",storage:"space_
 tellraw @s [{text:"Templates: ",color:"green"},{nbt:"templates",storage:"space_editor:document",interpret:false}]
 tellraw @s [{text:"Job: ",color:"light_purple"},{nbt:"job",storage:"space_editor:document",interpret:false}]
 tellraw @s [{text:"Paste transform: Rot=",color:"light_purple"},{score:{name:"@s",objective:"se.rot"}},{text:" / FlipY="},{score:{name:"@s",objective:"se.flip"}}]
+tellraw @s [{text:"Masks: ",color:"light_purple"},{nbt:"masks",storage:"space_editor:document",interpret:false}]
