@@ -29,5 +29,5 @@ execute unless data storage space_editor:runtime hit{dimension:"minecraft:overwo
 execute if data storage space_editor:runtime hit.pairId run return run function space_editor:pair/edit_bounds
 function space_editor:region/store_hit with storage space_editor:runtime hit
 function space_editor:mask/record_region_sync with storage space_editor:runtime hit
-function space_editor:preview/resync
+function space_editor:preview/update_hit
 tellraw @s {"text": "[Space Editor] Regionを更新しました。", "color": "green"}

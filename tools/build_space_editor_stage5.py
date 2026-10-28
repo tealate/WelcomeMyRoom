@@ -813,12 +813,146 @@ def generate_link_contract() -> None:
     ])
 
 
+def generate_region_edit_fix() -> None:
+    # A ray's sampled coordinates are monotone on each axis. Binary-search
+    # each AABB's first occupied sample instead of scanning every AABB at all
+    # 513 points. Keep milliblock comparisons, list-order ties, and the existing
+    # per-sample Paste/special-block priority and nearest-face implementation.
+    ray = (F / "region/ray.mcfunction").read_text(encoding="utf-8")
+    ray = ray.replace(
+        f"data modify {R} candidates set from {D} regions\n"
+        f"execute if data {R} candidates[0] run function space_editor:region/check_next",
+        "execute if score #region_ray se.v = #ray_best se.v run function space_editor:region/ray_hit",
+    ).replace("run function space_editor:region/ray\n", "run function space_editor:region/ray_step\n")
+    fn("region/ray_step", ray.splitlines())
+    fn("region/ray", [
+        f"data remove {R} rayHit",
+        "scoreboard players set #ray_best se.v 513",
+        'summon minecraft:marker ~ ~ ~ {Tags:["space_editor.ray_probe"]}',
+        f"data modify {R} rayPos set from entity @e[type=minecraft:marker,tag=space_editor.ray_probe,limit=1] Pos",
+        *[f"execute store result score #ray_origin_{axis} se.v run data get {R} rayPos[{i}] 1000" for i, axis in enumerate("xyz")],
+        "execute positioned ^ ^ ^12.8 run tp @e[type=minecraft:marker,tag=space_editor.ray_probe,limit=1] ~ ~ ~",
+        f"data modify {R} rayPos set from entity @e[type=minecraft:marker,tag=space_editor.ray_probe,limit=1] Pos",
+        *[line for i, axis in enumerate("xyz") for line in (
+            f"execute store result score #ray_end_{axis} se.v run data get {R} rayPos[{i}] 1000",
+            f"scoreboard players set #ray_sign_{axis} se.v 1",
+            f"execute if score #ray_end_{axis} se.v < #ray_origin_{axis} se.v run scoreboard players set #ray_sign_{axis} se.v -1",
+        )],
+        f"data modify {R} rayQueue set from {D} regions",
+        f"execute if data {R} rayQueue[0] run function space_editor:region/ray_next",
+        "kill @e[type=minecraft:marker,tag=space_editor.ray_probe]",
+        "function space_editor:region/ray_step",
+    ])
+    fn("region/ray_next", [
+        f"data modify {R} candidate set from {R} rayQueue[0]",
+        f"function space_editor:region/ray_check with {R} candidate",
+        f"data remove {R} rayQueue[0]",
+        # An origin hit cannot be beaten, including by a later overlapping box.
+        f"execute if score #ray_best se.v matches 1.. if data {R} rayQueue[0] run function space_editor:region/ray_next",
+    ])
+    fn("region/ray_check", [
+        '$execute unless dimension $(dimension) run return 0',
+        f'execute if data {R} {{activeTool:"pair_select"}} if data {R} candidate.kind run function space_editor:pair/filter',
+        f'execute if data {R} {{activeTool:"pair_select"}} if data {R} candidate.kind if score #pair_filter se.v matches 0 run return 0',
+        *[f"execute store result score #ray_{edge}_{axis} se.v run data get {R} candidate.{axis}{number}m 1"
+          for axis in "xyz" for edge, number in (("lo", 1), ("hi", 2))],
+        "scoreboard players set #ray_low se.v 0",
+        "scoreboard players operation #ray_high se.v = #ray_best se.v",
+        "scoreboard players remove #ray_high se.v 1",
+        "scoreboard players set #ray_found se.v 513",
+        "function space_editor:region/ray_search",
+        f"execute if score #ray_found se.v < #ray_best se.v run data modify {R} rayHit set from {R} candidate",
+        "scoreboard players operation #ray_best se.v < #ray_found se.v",
+    ])
+    fn("region/ray_search", [
+        "scoreboard players operation #ray_mid se.v = #ray_low se.v",
+        "scoreboard players operation #ray_mid se.v += #ray_high se.v",
+        "scoreboard players operation #ray_mid se.v /= #two se.v",
+        f"execute store result {R} rayDistance double 0.025 run scoreboard players get #ray_mid se.v",
+        f"function space_editor:region/ray_probe with {R}",
+        "scoreboard players set #ray_before se.v 0",
+        "scoreboard players set #ray_after se.v 0",
+        *[line for axis in "xyz" for line in (
+            f"execute if score #p{axis} se.v < #ray_lo_{axis} se.v if score #ray_sign_{axis} se.v matches 1 run scoreboard players set #ray_before se.v 1",
+            f"execute if score #p{axis} se.v >= #ray_hi_{axis} se.v if score #ray_sign_{axis} se.v matches -1 run scoreboard players set #ray_before se.v 1",
+            f"execute if score #p{axis} se.v < #ray_lo_{axis} se.v if score #ray_sign_{axis} se.v matches -1 run scoreboard players set #ray_after se.v 1",
+            f"execute if score #p{axis} se.v >= #ray_hi_{axis} se.v if score #ray_sign_{axis} se.v matches 1 run scoreboard players set #ray_after se.v 1",
+        )],
+        # Opposing constraints at one point mean the three slab intervals
+        # cannot overlap. Constant axes obey the same monotone comparisons.
+        "execute if score #ray_before se.v matches 1 if score #ray_after se.v matches 1 run return 0",
+        "execute if score #ray_before se.v matches 0 if score #ray_after se.v matches 0 run scoreboard players operation #ray_found se.v = #ray_mid se.v",
+        "execute if score #ray_before se.v matches 1 run scoreboard players operation #ray_low se.v = #ray_mid se.v",
+        "execute if score #ray_before se.v matches 1 run scoreboard players add #ray_low se.v 1",
+        "execute if score #ray_before se.v matches 0 run scoreboard players operation #ray_high se.v = #ray_mid se.v",
+        "execute if score #ray_before se.v matches 0 run scoreboard players remove #ray_high se.v 1",
+        "execute if score #ray_low se.v <= #ray_high se.v run function space_editor:region/ray_search",
+    ])
+    fn("region/ray_probe", [
+        '$execute positioned ^ ^ ^$(rayDistance) run tp @e[type=minecraft:marker,tag=space_editor.ray_probe,limit=1] ~ ~ ~',
+        f"data modify {R} rayPos set from entity @e[type=minecraft:marker,tag=space_editor.ray_probe,limit=1] Pos",
+        *[f"execute store result score #p{axis} se.v run data get {R} rayPos[{i}] 1000" for i, axis in enumerate("xyz")],
+    ])
+    fn("region/ray_hit", [f"data modify {R} hit set from {R} rayHit", "function space_editor:region/face"])
+
+    # All persistent Region decorations need the existing se.id association;
+    # pair labels/directions previously had none because resync killed all.
+    for name in ("pair/spawn_directions", "pair/preview_existence"):
+        path = F / f"{name}.mcfunction"
+        text = path.read_text(encoding="utf-8").replace('"space_editor.label"', '"space_editor.label","space_editor.new"')
+        write(path, text)
+        append(path, [
+            '$execute in $(dimension) run scoreboard players set @e[tag=space_editor.new] se.id $(id)',
+            '$execute in $(dimension) run tag @e[tag=space_editor.new] remove space_editor.new',
+        ])
+    append(F / "preview/highlight.mcfunction", [f'$data modify {R} highlightedRegion set value {{id:$(id),dimension:"$(dimension)"}}'])
+    fn("preview/clear_highlight", [
+        '$execute in $(dimension) as @e[tag=space_editor.region,scores={se.id=$(id)}] run data merge entity @s {block_state:{Name:"' + stage4.DISPLAY_BLOCKS["selection"] + '"}}',
+    ])
+    fn("preview/update_hit", [
+        f"execute if data {R} highlightedRegion run function space_editor:preview/clear_highlight with {R} highlightedRegion",
+        f"function space_editor:preview/update_region with {R} hit",
+        f"execute if data {D} {{editMode:1b}} if data {D} settings{{regionsVisible:1b}} run function space_editor:preview/highlight with {R} hit",
+    ])
+    fn("preview/update_region", [
+        # Restrict by both type tag and ID: Mask IDs are a separate sequence.
+        *[f'$execute in minecraft:{dim} run kill @e[tag=space_editor.{tag},scores={{se.id=$(id)}}]'
+          for dim in ("overworld", "the_nether", "the_end") for tag in ("region", "label")],
+        f"data remove {R} renderRegion",
+        f'$data modify {R} renderRegion set from {D} regions[{{id:$(id)}}]',
+        f"execute if data {R} renderRegion.id if data {D} {{editMode:1b}} if data {D} settings{{regionsVisible:1b}} run function space_editor:preview/prepare",
+        f"execute if data {R} renderRegion.id if data {D} {{editMode:1b}} if data {D} settings{{regionsVisible:1b}} run function space_editor:preview/spawn with {R} renderRegion",
+        f"data remove {R} currentMask",
+        f'$data modify {R} currentMask set from {D} masks[{{regionId:$(id)}}]',
+        f"execute if data {R} currentMask.id run function space_editor:mask/update_region with {R} currentMask",
+    ])
+    fn("mask/update_region", [
+        "function space_editor:mask/prepare",
+        *[f'$execute in minecraft:{dim} run kill @e[tag=space_editor.{tag},scores={{se.id=$(id)}}]'
+          for dim in ("overworld", "the_nether", "the_end") for tag in ("mask_body", "mask_guide")],
+        f"execute if score #mask_valid se.v matches 1 run function space_editor:mask/spawn with {R} maskRender",
+    ])
+    path = F / "region/save_resize.mcfunction"
+    write(path, path.read_text(encoding="utf-8").replace("function space_editor:preview/resync", "function space_editor:preview/update_hit"))
+    path = F / "pair/commit.mcfunction"
+    write(path, path.read_text(encoding="utf-8").replace("function space_editor:preview/resync", "function space_editor:preview/update_pair"))
+    fn("preview/update_pair", [
+        # Pose's hit still contains the old bounds; reload the committed record.
+        f"function space_editor:preview/reload_hit with {R} hit",
+        "function space_editor:preview/update_hit",
+        f'execute unless data {R} {{pairOperation:"move"}} unless data {R} {{pairOperation:"pose"}} run function space_editor:preview/update_partner with {R} hit',
+    ])
+    fn("preview/reload_hit", [f'$data modify {R} hit set from {D} regions[{{id:$(id)}}]'])
+    fn("preview/update_partner", ['$function space_editor:preview/update_region {id:$(partnerId)}'])
+
+
 def main() -> None:
     stage4.main()
     generate_transform()
     generate_pairs()
     generate_teleport()
     generate_link_contract()
+    generate_region_edit_fix()
     print(f"Generated stage-5 Space Editor: {len(list(F.rglob('*.mcfunction')))} functions")
 
 

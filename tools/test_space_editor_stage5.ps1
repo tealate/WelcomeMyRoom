@@ -21,7 +21,8 @@ $runPath = Join-Path $projectRoot ('build/test-server/run-stage5-' + [guid]::New
 $testExit = $LASTEXITCODE
 Write-Output "Test world: $runPath/gametestworld"
 Get-Content build/test-server/stage5-command-validation.log | Select-String 'VALIDATION|ERROR'
-Get-Content build/test-server/stage5-runtime-validation.log | Select-String 'SPACE_EDITOR_STAGE5_RUNTIME_PASS|required tests passed|AssertionError' | ForEach-Object { if ($_.Line.Length -gt 1000) { $_.Line.Substring(0,1000) } else { $_.Line } }
+Get-Content build/test-server/stage5-runtime-validation.log | Select-String 'SPACE_EDITOR_REGION_EDIT_PASS|SPACE_EDITOR_STAGE5_RUNTIME_PASS|required tests passed|AssertionError|Command execution stopped due to limit' | ForEach-Object { if ($_.Line.Length -gt 1000) { $_.Line.Substring(0,1000) } else { $_.Line } }
 if ($testExit -ne 0) { throw 'Minecraft GameTest failed; inspect build/test-server/stage5-runtime-validation.log' }
 if (-not (Select-String -Path build/test-server/stage5-runtime-validation.log -Pattern 'SPACE_EDITOR_STAGE5_RUNTIME_PASS' -Quiet)) { throw 'Stage 05 assertions did not finish' }
+if (Select-String -Path build/test-server/stage5-runtime-validation.log -Pattern 'Command execution stopped due to limit' -Quiet) { throw 'Command budget exceeded' }
 

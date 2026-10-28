@@ -281,9 +281,175 @@ public class SpaceEditorStage5GameTest {
         select(sl,"delete",0);pcmd("function space_editor:region/apply_hit");
         check(document().getListOrEmpty("linkGroups").isEmpty(),"unreferenced group collected");
     }
+    static int editMaxCommands;
+    static int measured(String command){
+        var actor=player.createCommandSourceStack().withPermission(net.minecraft.server.permissions.PermissionSet.ALL_PERMISSIONS);
+        var holder=new java.util.concurrent.atomic.AtomicReference<net.minecraft.commands.execution.ExecutionContext<CommandSourceStack>>();
+        net.minecraft.commands.Commands.executeCommandInContext(actor,context->{
+            holder.set(context);
+            helper.getLevel().getServer().getCommands().performPrefixedCommand(actor,command);
+        });
+        try{
+            var type=net.minecraft.commands.execution.ExecutionContext.class;
+            var limit=type.getDeclaredField("commandLimit");limit.setAccessible(true);
+            var quota=type.getDeclaredField("commandQuota");quota.setAccessible(true);
+            check(limit.getInt(holder.get())==65536,"default command limit unchanged");
+            int used=65536-quota.getInt(holder.get());
+            check(used<65536,"edit completes within command budget");
+            editMaxCommands=Math.max(editMaxCommands,used);return used;
+        }catch(ReflectiveOperationException ex){throw new AssertionError(ex);}
+    }
+    static void box(int id,int x1,int y1,int z1,int x2,int y2,int z2){
+        var r=new CompoundTag();r.putInt("id",id);r.putString("idText","region_"+id);r.putString("dimension","minecraft:overworld");
+        var min=new ListTag();var max=new ListTag();int[] a={x1,y1,z1},b={x2,y2,z2};
+        for(int i=0;i<3;i++){
+            String axis="xyz".substring(i,i+1);r.putInt(axis+"1m",a[i]);r.putInt(axis+"2m",b[i]);r.putInt("s"+axis+"m",b[i]-a[i]);
+            r.putDouble(axis+"1",a[i]*.001);r.putDouble(axis+"2",b[i]*.001);r.putDouble("s"+axis,(b[i]-a[i])*.001);
+            min.add(DoubleTag.valueOf(a[i]*.001));max.add(DoubleTag.valueOf(b[i]*.001));
+        }
+        r.put("min",min);r.put("maxExclusive",max);
+        cmd("data modify storage space_editor:document regions append value "+r);
+    }
+    static java.util.Map<java.util.UUID,net.minecraft.world.phys.Vec3> displays(String tag){
+        var result=new java.util.HashMap<java.util.UUID,net.minecraft.world.phys.Vec3>();
+        for(var e:helper.getLevel().getAllEntities())if(!e.isRemoved() && e.entityTags().contains(tag))result.put(e.getUUID(),e.position());
+        return result;
+    }
+    static void rayMove(double x,double y,double z,float yaw,float pitch){
+        // Independent oracle: the original exhaustive, first-sample/list-order
+        // algorithm, using Minecraft's own local-coordinate implementation.
+        var actor=player.createCommandSourceStack().withPosition(new net.minecraft.world.phys.Vec3(x,y,z)).withRotation(new net.minecraft.world.phys.Vec2(pitch,yaw)).withAnchor(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES);
+        CompoundTag expected=null;int face=-1;
+        for(int step=0;step<=512 && expected==null;step++){
+            var p=new net.minecraft.commands.arguments.coordinates.LocalCoordinates(0,0,step*.025).getPosition(actor);
+            int[] pos={(int)Math.floor(p.x*1000),(int)Math.floor(p.y*1000),(int)Math.floor(p.z*1000)};
+            for(var value:regions()){
+                var r=(CompoundTag)value;if(!r.getStringOr("dimension","").equals("minecraft:overworld"))continue;
+                boolean inside=true;int best=Integer.MAX_VALUE,f=0;
+                for(int i=0;i<3;i++){
+                    String a="xyz".substring(i,i+1);int lo=r.getIntOr(a+"1m",0),hi=r.getIntOr(a+"2m",0);
+                    if(pos[i]<lo || pos[i]>=hi)inside=false;
+                    if(pos[i]-lo<best){best=pos[i]-lo;f=i*2;}
+                    if(hi-pos[i]<best){best=hi-pos[i];f=i*2+1;}
+                }
+                if(inside){expected=r.copy();face=f;break;}
+            }
+        }
+        var before=regions().copy();
+        measured(String.format(java.util.Locale.ROOT,"execute positioned %.9f %.9f %.9f rotated %.5f %.5f run function space_editor:input/move",x,y,z,yaw,pitch));
+        if(expected==null){check(!runtime().contains("hit") && regions().equals(before),"miss preserves all records");return;}
+        int id=expected.getIntOr("id",0);check(runtime().getCompoundOrEmpty("hit").getIntOr("id",0)==id,"legacy sampled overlap priority");
+        check(runtime().getIntOr("hitFace",-1)==face,"legacy nearest face, including inside");
+        int delta=(face%2==0?-1000:1000)*(player.isCrouching()?-1:1);
+        for(int i=0;i<3;i++)for(int edge=1;edge<=2;edge++){
+            String key="xyz".substring(i,i+1)+edge+"m";
+            check(region(id).getIntOr(key,0)==expected.getIntOr(key,0)+(i==face/2?delta:0),"exact milliblock move");
+        }
+        check(regions().size()==before.size(),"move keeps every saved Region");
+        for(var value:before){var r=(CompoundTag)value;if(r.getIntOr("id",0)!=id)check(region(r.getIntOr("id",0)).equals(r),"unselected data unchanged");}
+        for(var e:helper.getLevel().getAllEntities())check(!e.entityTags().contains("space_editor.ray_probe") && !e.entityTags().contains("space_editor.ray_sample"),"ray markers cleaned");
+    }
+    static void regionEditTests() throws Exception{
+        cmd("function space_editor:preview/hide");
+        cmd("data modify storage space_editor:document regions set value []");cmd("data modify storage space_editor:document regionPairs set value []");
+        cmd("data modify storage space_editor:document masks set value []");cmd("data modify storage space_editor:document actions set value []");
+        cmd("data remove storage space_editor:runtime pastePending");cmd("data remove storage space_editor:runtime hit");
+        cmd("data modify storage space_editor:document editMode set value 1b");
+        cmd("data modify storage space_editor:document settings.regionsVisible set value 1b");
+        // 32 early misses plus a distant hit exceeded 65536 in the old ray.
+        for(int i=1;i<=32;i++)box(i,2000,80000,-1000,3000,84000,1000);
+        box(100,123,80001,234,1124,84002,1235);
+        cmd("function space_editor:preview/resync");
+        check(displays("space_editor.region").size()==33,"33 Region displays initially present");
+        var untouched=displays("space_editor.region");var labels=displays("space_editor.label");
+        // Exclude only the selected Region's box/label from UUID invariants.
+        cmd("execute as @e[scores={se.id=100}] run tag @s add editor_test.target");
+        for(var e:helper.getLevel().getAllEntities())if(e.entityTags().contains("editor_test.target")){untouched.remove(e.getUUID());labels.remove(e.getUUID());}
+        for(int n=0;n<24;n++){
+            var r=region(100);rayMove(.5,81.5,r.getDoubleOr("z1",0)-11.5,0,0);
+            check(displays("space_editor.region").size()==33 && displays("space_editor.label").size()==33,"24 far moves keep all frames/labels");
+            check(displays("space_editor.region").entrySet().containsAll(untouched.entrySet()),"other Region UUIDs and positions preserved");
+            check(displays("space_editor.label").entrySet().containsAll(labels.entrySet()),"other labels preserved");
+        }
+        var r=region(100);player.setShiftKeyDown(true);player.setPose(net.minecraft.world.entity.Pose.CROUCHING);
+        rayMove(.5,81.5,r.getDoubleOr("z1",0)-.125,0,0);
+        player.setShiftKeyDown(false);player.setPose(net.minecraft.world.entity.Pose.STANDING);
+        r=region(100);rayMove(.5,81.5,r.getDoubleOr("z1",0)+.5,0,0); // inside
+        int beforeX1=region(100).getIntOr("x1m",0),beforeX2=region(100).getIntOr("x2m",0);
+        select(100,"resize_face",1);measured("function space_editor:region/resize_face");
+        check(region(100).getIntOr("x2m",0)==beforeX2+100,"fractional face resize");
+        select(100,"resize_all",0);measured("function space_editor:region/resize_all");
+        check(region(100).getIntOr("x1m",0)==beforeX1-100 && region(100).getIntOr("x2m",0)==beforeX2+200,"fractional whole resize");
+        select(100,"mask_create",0);pcmd("function space_editor:mask/create_selected");
+        var maskRecord=document().getListOrEmpty("masks").copy();
+        double maskZ=0;for(var e:helper.getLevel().getAllEntities())if(e.entityTags().contains("space_editor.mask_body"))maskZ=e.getZ();
+        r=region(100);rayMove((r.getDoubleOr("x1",0)+r.getDoubleOr("x2",0))/2,81.5,r.getDoubleOr("z1",0)-1,0,0);
+        for(var e:helper.getLevel().getAllEntities())if(!e.isRemoved() && e.entityTags().contains("space_editor.mask_body"))near(e.getZ(),maskZ-1,"Mask follows move");
+        check(document().getListOrEmpty("masks").equals(maskRecord),"Mask saved metadata unchanged");
+        check(displays("space_editor.mask_body").size()==1 && displays("space_editor.mask_guide").size()==1,"no duplicate Mask entities");
+        measured("function space_editor:preview/resync");check(displays("space_editor.region").size()==33,"manual full resync still works");
+        // Paired edits refresh only the affected member(s), including all
+        // direction labels/arrows and attached Masks; IDs can overlap Mask IDs.
+        cmd("data modify storage space_editor:document nextId set value 300");
+        int paired=pair("teleport"),partner=region(paired).getIntOr("partnerId",0);
+        select(partner,"mask_create",0);pcmd("function space_editor:mask/create_selected");
+        pcmd("function space_editor:preview/resync");
+        var partnerDisplays=new java.util.HashSet<java.util.UUID>();
+        cmd("execute as @e[scores={se.id="+partner+"}] run tag @s add editor_test.partner");
+        for(var e:helper.getLevel().getAllEntities())if(e.entityTags().contains("editor_test.partner"))partnerDisplays.add(e.getUUID());
+        select(paired,"move",1);measured("function space_editor:region/move");
+        var all=new java.util.HashSet<java.util.UUID>();for(var e:helper.getLevel().getAllEntities())if(!e.isRemoved())all.add(e.getUUID());
+        check(all.containsAll(partnerDisplays),"pair move preserves partner frames/directions");
+        int pairX=region(paired).getIntOr("x1m",0),partnerX=region(partner).getIntOr("x1m",0);
+        select(paired,"resize_face",0);measured("function space_editor:region/resize_face");
+        check(region(paired).getIntOr("x1m",0)==pairX-100 && region(partner).getIntOr("x1m",0)==partnerX-100,"paired face resize remains synchronized");
+        check(displays("space_editor.region").size()==35,"paired resize keeps unrelated frames");
+        check(displays("space_editor.direction_front").size()==2 && displays("space_editor.direction_up").size()==2,"paired arrows do not accumulate");
+        check(displays("space_editor.label").size()==43,"paired labels do not accumulate");
+        measured("function space_editor:pair/set_pose {id:"+paired+",rotationY:90,flipY:1}");
+        select(paired,"resize_all",0);measured("function space_editor:region/resize_all");
+        check(java.util.Arrays.equals(region(paired).getIntArray("localSize").orElseThrow(),region(partner).getIntArray("localSize").orElseThrow()),"rotated paired whole resize stays synchronized");
+        for(var e:helper.getLevel().getAllEntities())if(e.entityTags().contains("space_editor.mask_body")){
+            // Mask #2 follows partner #301, not Region #2 with the same score.
+            if(e.getX()>10)near(e.getX(),region(partner).getDoubleOr("x1",0),"paired Mask position synchronized");
+        }
+        pcmd("function space_editor:region/display/hide");select(paired,"move",1);measured("function space_editor:region/move");
+        check(displays("space_editor.region").isEmpty() && displays("space_editor.label").isEmpty() && displays("space_editor.mask_guide").isEmpty(),"hidden Region edits do not reveal frames/labels/guides");
+        check(displays("space_editor.mask_body").size()==2,"hidden edits retain Mask bodies");
+        pcmd("function space_editor:region/display/show");select(paired,"delete",0);measured("function space_editor:region/apply_hit");
+        check(displays("space_editor.region").size()==33 && displays("space_editor.direction_front").isEmpty(),"pair deletion removes only pair displays");
+        check(document().getListOrEmpty("masks").size()==1,"pair deletion removes only attached Mask");
+        pcmd("function space_editor:play");select(100,"move",1);measured("function space_editor:region/move");
+        check(displays("space_editor.preview").isEmpty() && displays("space_editor.mask_body").size()==1,"play edit keeps only persistent Mask");
+        cmd("data modify storage space_editor:document editMode set value 1b");
+        // Thin, negative, diagonal, descending, overlapping and miss rays.
+        cmd("data modify storage space_editor:document masks set value []");
+        cmd("data modify storage space_editor:document regions set value []");
+        box(201,-1234,80001,-1234,1235,84002,1235);box(202,-1234,80001,-1234,1235,84002,1235);
+        rayMove(.25,81.5,-10,0,0); // equal-distance list order
+        rayMove(10,81.5,0,90,0);rayMove(-10,81.5,-10,-45,0);rayMove(0,90,0,0,90);rayMove(0,70,0,0,-90);
+        rayMove(10,81.5,10,0,0);
+        cmd("data modify storage space_editor:document regions set value []");box(203,-1,80000,-1,0,84000,1000);
+        rayMove(-.0005,81.5,-2,0,0); // one-milliblock width
+        // Paste preview wins a same-sample tie against an ordinary Region.
+        box(204,0,80000,0,1000,84000,1000);
+        cmd("data modify storage space_editor:runtime pastePending set value {targetDimension:\"minecraft:overworld\",x:0,y:80,z:0,sx:1,sy:4,sz:1}");
+        var saved=regions().copy();measured("execute positioned 0.5 81.5 -1 rotated 0 0 run function space_editor:input/delete");
+        check(!runtime().contains("pastePending") && regions().equals(saved),"Paste cancel priority preserved");
+        cmd("data modify storage space_editor:runtime pastePending set value {targetDimension:\"minecraft:overworld\",x:0,y:80,z:0,sx:1,sy:4,sz:1}");
+        measured("execute positioned 0.5 81.5 -1 rotated 0 0 run function space_editor:input/move");
+        near(runtime().getCompoundOrEmpty("pastePending").getDoubleOr("z",999),-1,"Paste move priority preserved");
+        check(regions().equals(saved),"Paste movement does not edit Region");cmd("data remove storage space_editor:runtime pastePending");
+        var config=com.google.gson.JsonParser.parseString(Files.readString(Path.of("space_editor_blocks.json"))).getAsJsonObject();
+        String fence=config.getAsJsonObject("collisionCarriers").get("fence").getAsString();
+        cmd("setblock 0 83 0 "+fence);
+        measured("execute positioned 0.5 81.5 -1 rotated 0 0 run function space_editor:input/delete");
+        check(helper.getLevel().getBlockState(new net.minecraft.core.BlockPos(0,83,0)).isAir() && regions().equals(saved),"special collision deletion precedes Region selection");
+        System.out.println("SPACE_EDITOR_REGION_EDIT_PASS: 33 Regions, 24 far moves, near/inside/Shift, fractional/thin/diagonal/vertical/overlap/miss, resize, Mask, UUID preservation, resync; max_commands="+editMaxCommands+" limit=65536");
+    }
     static void test(GameTestHelper h){
         helper=h;source=h.getLevel().getServer().createCommandSourceStack();
-        cmd("function space_editor:load");cmd("forceload add -16 -16 48 16");cmd("execute in minecraft:the_nether run forceload add 16 -16 32 16");
+        cmd("function space_editor:load");cmd("forceload add -48 -48 80 48");cmd("execute in minecraft:the_nether run forceload add 16 -16 32 16");
         player=h.makeMockServerPlayerInLevel();player.setNoGravity(true);player.setPos(.5,82,-2.5);
         final boolean[] done={false};final int[] ticks={0};
         h.onEachTick(()->{
@@ -293,7 +459,7 @@ public class SpaceEditorStage5GameTest {
                 if(!runtime().getBooleanOr("testLoaded",false)){if(++ticks[0]>100)throw new AssertionError("test chunks not loaded");return;}
                 cmd("execute in minecraft:the_nether store success storage space_editor:runtime netherLoaded byte 1 if loaded 22 80 1");
                 if(!runtime().getBooleanOr("netherLoaded",false)){if(++ticks[0]>2000){for(var level:h.getLevel().getServer().getAllLevels())System.out.println("TEST_LEVEL "+level.dimension());throw new AssertionError("Nether test chunks not loaded");}return;}
-                mappingTests();pairTests();uiTests();teleportTests();
+                regionEditTests();mappingTests();pairTests();uiTests();teleportTests();
                 System.out.println("SPACE_EDITOR_STAGE5_RUNTIME_PASS: 64 mappings, no drift, 384 face edits, rollback, pose, placement, reload, group warnings, TP/re-entry, safe/unloaded exits, two players, pre-TP contacts, dimension transfer");
                 done[0]=true;h.succeed();
             }catch(Throwable ex){done[0]=true;ex.printStackTrace();h.fail(ex.getMessage());}
