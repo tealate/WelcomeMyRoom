@@ -59,7 +59,8 @@ def main() -> None:
         'execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"mask"}}] run function space_editor:input/mask',
     ])
     insert_before(F / "start.mcfunction", "function space_editor:preview/resync", [
-        'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"mask"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"mask"}},minecraft:custom_name={text:"Mask棒",color:"light_purple",italic:false},minecraft:lore=[{text:"Regionを右クリック: Mask生成",italic:false},{text:"削除棒はMaskを先に削除",color:"gray",italic:false}]]',
+        'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"mask"}},minecraft:item_model="editor:tool_mask"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"mask"}}]',
+        'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"mask"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"mask"}},minecraft:item_model="editor:tool_mask",minecraft:custom_name={text:"Mask棒",color:"light_purple",italic:false},minecraft:lore=[{text:"Regionを右クリック: Mask生成",italic:false},{text:"削除棒はMaskを先に削除",color:"gray",italic:false}]]',
     ])
 
     # Mask creation uses the existing Region ray/AABB selection flow.

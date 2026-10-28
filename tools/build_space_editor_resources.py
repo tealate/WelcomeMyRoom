@@ -23,6 +23,19 @@ ROOT = Path(__file__).resolve().parents[1]
 RP = ROOT / "space_editor_resources"
 MANIFEST = ROOT / "space_editor_generated_manifest.json"
 
+TOOL_MODELS = {
+    "region": "minecraft:block/cyan_concrete",
+    "resize_all": "minecraft:block/yellow_concrete",
+    "resize_face": "minecraft:block/orange_concrete",
+    "move": "minecraft:block/lime_concrete",
+    "delete": "minecraft:block/red_concrete",
+    "region_visibility": "minecraft:block/magenta_concrete",
+    "copy": "minecraft:block/green_concrete",
+    "paste": "minecraft:block/purple_concrete",
+    "fill": "minecraft:block/gold_block",
+    "mask": "minecraft:block/pink_concrete",
+}
+
 
 def write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -134,6 +147,72 @@ def _preview_model(name: str) -> dict:
     }
 
 
+def _tool_box(start: list[float], end: list[float], texture: str = "#accent", *, rotation: dict | None = None) -> dict:
+    faces = {
+        face: {"texture": texture}
+        for face in ("north", "south", "east", "west", "up", "down")
+    }
+    result = {"from": start, "to": end, "faces": faces}
+    if rotation is not None:
+        result["rotation"] = rotation
+    return result
+
+
+def _tool_model(name: str, accent: str) -> dict:
+    # A common dark handle keeps the set visually related.  The coloured head
+    # has a different silhouette per action so tools remain distinguishable in
+    # the hotbar even when their Japanese names are not visible.
+    elements = [_tool_box([7, 0, 7], [9, 10, 9], "#handle")]
+    if name == "region":
+        elements += [_tool_box([3, 10, 7], [13, 12, 9]), _tool_box([7, 8, 7], [9, 16, 9])]
+    elif name == "resize_all":
+        elements += [_tool_box([2, 11, 7], [14, 13, 9]), _tool_box([7, 8, 7], [9, 16, 9]),
+                     _tool_box([2, 10, 7], [5, 14, 9]), _tool_box([11, 10, 7], [14, 14, 9])]
+    elif name == "resize_face":
+        elements += [_tool_box([2, 9, 7], [7, 15, 9]), _tool_box([7, 11, 7], [14, 13, 9])]
+    elif name == "move":
+        elements += [_tool_box([7, 8, 7], [9, 15, 9]), _tool_box([4, 11, 7], [12, 13, 9]),
+                     _tool_box([6, 13, 7], [10, 16, 9])]
+    elif name == "delete":
+        elements += [
+            _tool_box([3, 11, 7], [13, 13, 9], rotation={"origin": [8, 12, 8], "axis": "z", "angle": 45, "rescale": True}),
+            _tool_box([3, 11, 7], [13, 13, 9], rotation={"origin": [8, 12, 8], "axis": "z", "angle": -45, "rescale": True}),
+        ]
+    elif name == "region_visibility":
+        elements += [_tool_box([2, 10, 7], [14, 14, 9]), _tool_box([6, 9, 6], [10, 15, 10], "#detail")]
+    elif name == "copy":
+        elements += [_tool_box([3, 9, 7], [10, 15, 8]), _tool_box([6, 11, 8], [13, 16, 9], "#detail")]
+    elif name == "paste":
+        elements += [_tool_box([7, 10, 7], [9, 16, 9]), _tool_box([4, 10, 7], [12, 12, 9]),
+                     _tool_box([6, 8, 7], [10, 11, 9])]
+    elif name == "fill":
+        elements += [_tool_box([3, 9, 6], [13, 15, 10]), _tool_box([5, 11, 5], [11, 16, 6], "#detail")]
+    elif name == "mask":
+        elements += [_tool_box([3, 9, 7], [13, 11, 9]), _tool_box([3, 14, 7], [13, 16, 9]),
+                     _tool_box([3, 11, 7], [5, 14, 9]), _tool_box([11, 11, 7], [13, 14, 9])]
+    return {
+        "parent": "minecraft:item/handheld",
+        "textures": {
+            "handle": "minecraft:block/stripped_dark_oak_log",
+            "accent": accent,
+            "detail": "minecraft:block/white_concrete",
+            "particle": accent,
+        },
+        "elements": elements,
+    }
+
+
+def build_tool_resources() -> None:
+    for name, accent in TOOL_MODELS.items():
+        write_json(RP / f"assets/editor/models/item/tool_{name}.json", _tool_model(name, accent))
+        write_json(RP / f"assets/editor/items/tool_{name}.json", {
+            "model": {
+                "type": "minecraft:model",
+                "model": f"editor:item/tool_{name}",
+            }
+        })
+
+
 def build_preview_resources() -> None:
     from PIL import Image
 
@@ -208,6 +287,7 @@ def build_resources() -> None:
                       "faces": {face: {"texture": "#all", "uv": [0, 0, 16, 16]} for face in ("north", "south", "east", "west", "up", "down")}}],
     })
     build_preview_resources()
+    build_tool_resources()
     write_json(RP / "assets/editor/models/block/collision_fence.json", {"textures": {"particle": "minecraft:block/cherry_planks"}, "elements": []})
     write_json(RP / "assets/editor/models/block/collision_wall.json", {"textures": {"particle": "minecraft:block/sandstone"}, "elements": []})
     desired = managed_blockstates(config)
@@ -243,6 +323,8 @@ def sync_live_resources() -> None:
     # other way around.
     files += [RP / "assets/editor/models/block/mask_body.json"]
     files += [RP / "assets/editor/models/block/selection_candidate.json"]
+    files += [RP / f"assets/editor/models/item/tool_{name}.json" for name in TOOL_MODELS]
+    files += [RP / f"assets/editor/items/tool_{name}.json" for name in TOOL_MODELS]
     for name in ("selection", "guide"):
         files += [
             RP / f"assets/editor/models/block/{name}.json",
