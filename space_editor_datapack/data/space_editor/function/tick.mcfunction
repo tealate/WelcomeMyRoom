@@ -33,3 +33,4 @@ execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if ite
 scoreboard players set @a[scores={se.use=1..}] se.use 0
 execute unless score #selection_cursor_active se.v matches 1 run function space_editor:preview/remove_selection_candidate
 execute as @a[tag=space_editor.editing] at @s run function space_editor:internal/dimension_tick
+function space_editor:teleport/tick

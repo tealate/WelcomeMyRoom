@@ -57,6 +57,24 @@ public class SpaceEditorStage5GameTest {
         cmd("data modify storage space_editor:runtime map.target.x1m set value 17001");
         cmd("function space_editor:mapping/position");
         near(runtime().getCompoundOrEmpty("map").getCompoundOrEmpty("result").getDoubleOr("x",999),17.1255,"half-milliblock center");
+        cmd("data modify storage space_editor:runtime map.point set value [-0.5005d,80.1235d,0.1005d]");
+        cmd("data modify storage space_editor:runtime map.yaw set value -0.1f");
+        cmd("data modify storage space_editor:runtime map.pitch set value 30.123f");
+        for(int n=0;n<32;n++){
+            cmd("function space_editor:mapping/position");
+            cmd("data modify storage space_editor:runtime map.point set from storage space_editor:runtime map.result.point");
+            cmd("data modify storage space_editor:runtime map.yaw set from storage space_editor:runtime map.result.yaw");
+            cmd("data modify storage space_editor:runtime map.pitch set from storage space_editor:runtime map.result.pitch");
+            cmd("data modify storage space_editor:runtime tempFrame set from storage space_editor:runtime map.source");
+            cmd("data modify storage space_editor:runtime map.source set from storage space_editor:runtime map.target");
+            cmd("data modify storage space_editor:runtime map.target set from storage space_editor:runtime tempFrame");
+        }
+        var repeated=runtime().getCompoundOrEmpty("map").getListOrEmpty("point");
+        near(repeated.getDoubleOr(0,999),-.5005,"repeated negative mapping has no quantization drift");
+        near(repeated.getDoubleOr(1,999),80.1235,"repeated fractional mapping has no drift");
+        near(repeated.getDoubleOr(2,999),.1005,"repeated z mapping has no drift");
+        near(runtime().getCompoundOrEmpty("map").getFloatOr("yaw",999),-.1,"repeated fractional yaw has no drift");
+        near(runtime().getCompoundOrEmpty("map").getFloatOr("pitch",999),30.123,"repeated fractional pitch has no drift");
     }
     static int plain(){
         cmd("data modify storage space_editor:runtime selection set value {a:[I;0,80,0],b:[I;2,83,4],dimension:\"minecraft:overworld\"}");
@@ -64,12 +82,14 @@ public class SpaceEditorStage5GameTest {
         return regions().getCompoundOrEmpty(regions().size()-1).getIntOr("id",0);
     }
     static int pair(String kind){
+        int pairsBefore=document().getListOrEmpty("regionPairs").size();
         int a=plain();
         cmd("data modify storage space_editor:runtime pairCandidate set from storage space_editor:document regions[{id:"+a+"}]");
         cmd("data modify storage space_editor:runtime pairCandidate.x1m set value 20000");
         cmd("data modify storage space_editor:runtime pairCandidate.x2m set value 23000");
         cmd("function space_editor:pair/create {source:"+a+",kind:\""+kind+"\"}");
         check(region(a).contains("pairId"),"pair committed");
+        check(document().getListOrEmpty("regionPairs").size()==pairsBefore+1,"exactly one pair record per creation");
         return a;
     }
     static void pose(int id,int rotation,int flip){cmd("function space_editor:pair/set_pose {id:"+id+",rotationY:"+rotation+",flipY:"+flip+"}");}
@@ -162,6 +182,10 @@ public class SpaceEditorStage5GameTest {
         check(preview!=null,"placement preview spawned");
         int arrows=0;for(var e:helper.getLevel().getAllEntities())if(e.entityTags().contains("space_editor.pending_arrow_front") || e.entityTags().contains("space_editor.pending_arrow_up"))arrows++;
         check(arrows==2,"both 3D orientation arrows spawned");
+        pcmd("execute as @e[tag=space_editor.pending_arrow_front,limit=1] run data modify storage space_editor:runtime testArrow set from entity @s transformation.left_rotation");
+        check(runtime().getListOrEmpty("testArrow").getFloatOr(1,0)<-.7,"front arrow rotates toward world -X at yaw 90");
+        pcmd("execute as @e[tag=space_editor.pending_arrow_up,limit=1] run data modify storage space_editor:runtime testArrow set from entity @s transformation.left_rotation");
+        check(runtime().getListOrEmpty("testArrow").getFloatOr(0,0)>.7,"FlipY arrow points downward");
         pcmd("function space_editor:pair/track");
         boolean same=false;for(var e:helper.getLevel().getAllEntities())if(e.entityTags().contains("space_editor.pair_pending_box") && e.getUUID().equals(preview))same=true;
         check(same,"placement preview reuses entity");
@@ -172,9 +196,94 @@ public class SpaceEditorStage5GameTest {
         pcmd("function space_editor:play");
         for(var e:helper.getLevel().getAllEntities())check(!e.entityTags().contains("space_editor.preview"),"play hides every edit indicator");
     }
+    static void config(int regionId,int group){
+        cmd("function space_editor:pair/configure {id:"+region(regionId).getIntOr("pairId",0)+",groupId:"+group+",roomA:\"room_a\",roomB:\"room_b\",direction:\"both\",cooldownTicks:20}");
+    }
+    static void snapshot(){
+        cmd("data modify storage space_editor:runtime playerSnapshots set value []");
+        pcmd("function space_editor:teleport/snapshot");
+    }
+    static net.minecraft.server.level.ServerPlayer namedPlayer(String name){
+        var server=helper.getLevel().getServer();
+        var cookie=net.minecraft.server.network.CommonListenerCookie.createInitial(new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(),name),false);
+        var p=new net.minecraft.server.level.ServerPlayer(server,helper.getLevel(),cookie.gameProfile(),cookie.clientInformation()){
+            public net.minecraft.world.level.GameType gameMode(){return net.minecraft.world.level.GameType.CREATIVE;}
+        };
+        var connection=new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+        new io.netty.channel.embedded.EmbeddedChannel(connection);
+        server.getPlayerList().placeNewPlayer(connection,p,cookie);
+        return p;
+    }
+    static void teleportTests(){
+        cmd("data modify storage space_editor:document regions set value []");
+        cmd("data modify storage space_editor:document regionPairs set value []");
+        cmd("data modify storage space_editor:document actions set value []");
+        int tp=pair("teleport"),dest=region(tp).getIntOr("partnerId",0),sl=pair("space_link");
+        config(tp,1);config(sl,1);
+        check(runtime().getListOrEmpty("linkWarnings").isEmpty(),"matching independent pairs validate");
+        pose(dest,90,1);
+        check(runtime().getListOrEmpty("linkWarnings").size()==1,"independent pair pose mismatch warns");
+        pose(region(sl).getIntOr("partnerId",0),90,1);
+        check(runtime().getListOrEmpty("linkWarnings").isEmpty(),"matching new poses clear warning");
+        var links=document().getListOrEmpty("linkGroups").copy();
+        cmd("function space_editor:load");
+        check(document().getListOrEmpty("linkGroups").equals(links),"group survives reload");
+        pcmd("function space_editor:play");
+        pcmd("scoreboard players set @s se.tp_cd 0");pcmd("scoreboard players set @s se.tp_lock 0");pcmd("scoreboard players set @s se.instance 7");
+        player.setPos(.5,80.5,1.5);player.setYRot(15);player.setXRot(25);
+        cmd("fill 18 78 -2 26 88 8 air");
+        snapshot();pcmd("function space_editor:teleport/player");
+        near(player.getX(),22.5,"TP position x");near(player.getY(),83.5,"TP FlipY position y");near(player.getZ(),1.5,"TP rotation z");
+        near(player.getYRot(),105,"TP yaw");near(player.getXRot(),-25,"TP pitch");
+        cmd("function space_editor:load");snapshot();pcmd("function space_editor:teleport/player");near(player.getX(),22.5,"reload retains per-player arrival lock");
+        for(int i=0;i<30;i++){pcmd("scoreboard players set @s se.tp_cd 0");snapshot();pcmd("function space_editor:teleport/player");}
+        near(player.getX(),22.5,"destination dwell never bounces even after cooldown");
+        player.setPos(40.5,80.5,1.5);snapshot();pcmd("function space_editor:teleport/player");
+        player.setPos(22.5,83.5,1.5);snapshot();pcmd("function space_editor:teleport/player");
+        near(player.getX(),.5,"reverse after exit/re-entry x");near(player.getY(),80.5,"reverse y");near(player.getYRot(),15,"reverse yaw");
+        pcmd("scoreboard players set @s se.tp_cd 0");pcmd("scoreboard players set @s se.tp_lock 0");
+        cmd("setblock 22 84 1 stone");snapshot();pcmd("function space_editor:teleport/player");
+        near(player.getX(),.5,"obstructed arrival refuses TP");cmd("setblock 22 84 1 air");
+        cmd("data modify storage space_editor:runtime destinationBackup set from storage space_editor:document regions[{id:"+dest+"}]");
+        cmd("data modify storage space_editor:document regions[{id:"+dest+"}].x1m set value 99998000");
+        cmd("data modify storage space_editor:document regions[{id:"+dest+"}].x2m set value 100003000");
+        snapshot();pcmd("function space_editor:teleport/player");near(player.getX(),.5,"unloaded target refuses TP");
+        cmd("data modify storage space_editor:document regions[{id:"+dest+"}] set from storage space_editor:runtime destinationBackup");
+        player.setPos(3,80.5,1.5);snapshot();pcmd("function space_editor:teleport/player");near(player.getX(),3,"maxExclusive is excluded");
+        player.setPos(.5,80.5,1.5);pcmd("function space_editor:start");snapshot();pcmd("function space_editor:teleport/player");near(player.getX(),.5,"editing never teleports");pcmd("function space_editor:play");
+        player.deathTime=1;snapshot();pcmd("function space_editor:teleport/player");near(player.getX(),.5,"dead player is not transferred");player.deathTime=0;
+        var other=namedPlayer("pair-test-two");other.setNoGravity(true);other.setPos(1,81,2);other.setYRot(0);other.setXRot(0);
+        check(!other.getUUID().equals(player.getUUID()),"two distinct player UUIDs");
+        var list=helper.getLevel().getServer().getPlayerList().getPlayers();
+        boolean addFirst=!list.contains(player),addSecond=!list.contains(other);
+        if(addFirst)list.add(player);if(addSecond)list.add(other);
+        try{
+            pcmd("scoreboard players set @s se.tp_cd 0");pcmd("scoreboard players set @s se.tp_lock 0");
+            cmd("function space_editor:teleport/tick");
+            check(runtime().getListOrEmpty("playerSnapshots").size()==2,"all players captured before any TP");
+            check(runtime().getListOrEmpty("spaceLinkContacts").size()==2,"both SpaceLink contacts use pre-TP positions");
+            check(runtime().getListOrEmpty("transfers").size()==2,"both players TP independently in one tick");
+            near(runtime().getListOrEmpty("playerSnapshots").getCompoundOrEmpty(0).getListOrEmpty("point").getDoubleOr(0,999),.5,"snapshot unchanged by transfer");
+            near(other.getX(),22,"second player mapping independent");
+            cmd("function space_editor:teleport/tick");
+            check(runtime().getListOrEmpty("transfers").isEmpty(),"next tick suppresses both loops");
+        }finally{if(addFirst)list.remove(player);helper.getLevel().getServer().getPlayerList().remove(other);}
+        // Cross-dimension mapping uses identical math, with loaded/safe target.
+        player.setPos(.5,80.5,1.5);pcmd("scoreboard players set @s se.tp_cd 0");pcmd("scoreboard players set @s se.tp_lock 0");
+        cmd("data modify storage space_editor:document regions[{id:"+dest+"}].dimension set value \"minecraft:the_nether\"");
+        cmd("execute in minecraft:the_nether run fill 18 78 -2 26 88 8 air");
+        snapshot();pcmd("function space_editor:teleport/player");
+        check(player.level().dimension().identifier().toString().equals("minecraft:the_nether"),"dimension transfer succeeds");
+        near(player.getX(),22.5,"dimension transfer mapping");
+        pcmd("execute in minecraft:overworld run tp @s 0.5 80.5 1.5");
+        select(tp,"delete",0);pcmd("function space_editor:region/apply_hit");
+        check(document().getListOrEmpty("linkGroups").size()==1,"shared group retained for SpaceLink");
+        select(sl,"delete",0);pcmd("function space_editor:region/apply_hit");
+        check(document().getListOrEmpty("linkGroups").isEmpty(),"unreferenced group collected");
+    }
     static void test(GameTestHelper h){
         helper=h;source=h.getLevel().getServer().createCommandSourceStack();
-        cmd("function space_editor:load");cmd("forceload add -16 -16 48 16");
+        cmd("function space_editor:load");cmd("forceload add -16 -16 48 16");cmd("execute in minecraft:the_nether run forceload add 16 -16 32 16");
         player=h.makeMockServerPlayerInLevel();player.setNoGravity(true);player.setPos(.5,82,-2.5);
         final boolean[] done={false};final int[] ticks={0};
         h.onEachTick(()->{
@@ -182,8 +291,10 @@ public class SpaceEditorStage5GameTest {
             try{
                 cmd("execute store success storage space_editor:runtime testLoaded byte 1 if loaded 0 80 0");
                 if(!runtime().getBooleanOr("testLoaded",false)){if(++ticks[0]>100)throw new AssertionError("test chunks not loaded");return;}
-                mappingTests();pairTests();uiTests();
-                System.out.println("SPACE_EDITOR_STAGE5_RUNTIME_PASS: 64 mappings, 384 local-face edits, rollback, pose, movement, deletion, reload, placement preview, play visibility");
+                cmd("execute in minecraft:the_nether store success storage space_editor:runtime netherLoaded byte 1 if loaded 22 80 1");
+                if(!runtime().getBooleanOr("netherLoaded",false)){if(++ticks[0]>2000){for(var level:h.getLevel().getServer().getAllLevels())System.out.println("TEST_LEVEL "+level.dimension());throw new AssertionError("Nether test chunks not loaded");}return;}
+                mappingTests();pairTests();uiTests();teleportTests();
+                System.out.println("SPACE_EDITOR_STAGE5_RUNTIME_PASS: 64 mappings, no drift, 384 face edits, rollback, pose, placement, reload, group warnings, TP/re-entry, safe/unloaded exits, two players, pre-TP contacts, dimension transfer");
                 done[0]=true;h.succeed();
             }catch(Throwable ex){done[0]=true;ex.printStackTrace();h.fail(ex.getMessage());}
         });

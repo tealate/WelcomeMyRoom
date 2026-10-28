@@ -4,6 +4,8 @@ $data modify storage space_editor:runtime hit set from storage space_editor:docu
 execute unless data storage space_editor:runtime hit.pairId run return 0
 function space_editor:pair/load with storage space_editor:runtime hit
 function space_editor:pair/snapshot
+execute unless data storage space_editor:runtime editA.id run return 0
+execute unless data storage space_editor:runtime editB.id run return 0
 data modify storage space_editor:runtime frame set from storage space_editor:runtime hit
 $data modify storage space_editor:runtime frame.rotationY set value $(rotationY)
 $data modify storage space_editor:runtime frame.flipY set value $(flipY)b

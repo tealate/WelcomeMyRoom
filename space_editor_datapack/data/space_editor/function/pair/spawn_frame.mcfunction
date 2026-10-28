@@ -1,0 +1,3 @@
+$execute in $(dimension) positioned 0.0 0.0 0.0 run summon minecraft:block_display ~$(x1) ~$(y1) ~$(z1) {Tags:["space_editor.preview","space_editor.region","space_editor.pair_frame_new"],block_state:{Name:"minecraft:magenta_glazed_terracotta"},transformation:{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},width:64f,height:64f}
+$execute in $(dimension) run scoreboard players set @e[tag=space_editor.pair_frame_new] se.id $(id)
+$execute in $(dimension) run tag @e[tag=space_editor.pair_frame_new] remove space_editor.pair_frame_new

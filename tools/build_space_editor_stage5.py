@@ -1,10 +1,11 @@
 """Stage 05: additive paired Regions and teleport, layered on Stage 04."""
 from __future__ import annotations
 
+import re
+
 import build_space_editor_stage4 as stage4
 
 F = stage4.F
-fn = stage4.fn
 write = stage4.write
 append = stage4.append
 insert_before = stage4.insert_before
@@ -14,12 +15,40 @@ R = "storage space_editor:runtime"
 D = "storage space_editor:document"
 
 
+def fn(name: str, lines: list[str]) -> None:
+    """Write Stage 05 commands without integer X/Z block-center coercion.
+
+    Macro doubles such as 22.0 expand to `22`. Relative coordinates from an
+    explicit origin retain exact real coordinates for TP and display entities.
+    """
+    coords = r'(\$\([\w]+\)) (\$\([\w]+\)) (\$\([\w]+\))'
+    result = []
+    for line in lines:
+        line = re.sub(r'positioned ' + coords, r'positioned 0.0 0.0 0.0 positioned ~\1 ~\2 ~\3', line)
+        line = re.sub(r'run tp @s ' + coords, r'positioned 0.0 0.0 0.0 run tp @s ~\1 ~\2 ~\3', line)
+        line = re.sub(r'run summon (minecraft:[\w]+) ' + coords,
+                      r'positioned 0.0 0.0 0.0 run summon \1 ~\2 ~\3 ~\4', line)
+        result.append(line)
+    stage4.fn(name, result)
+
+
 def basis(rotation: int, flip: int) -> tuple[tuple[int, int], ...]:
     """World components (local axis, sign); positive yaw matches Minecraft."""
     horizontal = {0: ((0, 1), (2, 1)), 90: ((2, -1), (0, 1)),
                   180: ((0, -1), (2, -1)), 270: ((2, 1), (0, -1))}
     x, z = horizontal[rotation]
     return x, (1, -1 if flip else 1), z
+
+
+def read_fixed(path: str, score: str, factor: int = 2000, scale: float = 0.0005, nbt_type: str = "double") -> list[str]:
+    # data-get floors. Recover exact fixed-point values produced by this module
+    # when IEEE multiplication places them just below the integral score.
+    return [f"execute store result score {score} se.v run data get {R} {path} {factor}",
+            f"scoreboard players operation #quant_next se.v = {score} se.v",
+            "scoreboard players add #quant_next se.v 1",
+            f"execute store result {R} quantized {nbt_type} {scale} run scoreboard players get #quant_next se.v",
+            f"execute store success score #quant_diff se.v run data modify {R} quantized set from {R} {path}",
+            f"execute if score #quant_diff se.v matches 0 run scoreboard players operation {score} se.v = #quant_next se.v"]
 
 
 def generate_transform() -> None:
@@ -34,7 +63,7 @@ def generate_transform() -> None:
                       f"execute store result score #map_tmp se.v run data get {R} map.{end}.{axis}2m 1",
                       f"scoreboard players operation #map_{end}_{axis} se.v += #map_tmp se.v"]
     for i, axis in enumerate("xyz"):
-        lines += [f"execute store result score #map_p{axis} se.v run data get {R} map.point[{i}] 2000",
+        lines += [*read_fixed(f"map.point[{i}]", f"#map_p{axis}"),
                   f"scoreboard players operation #map_p{axis} se.v -= #map_source_{axis} se.v"]
     for rot in (0, 90, 180, 270):
         for flip in (0, 1):
@@ -64,13 +93,14 @@ def generate_transform() -> None:
               f"execute if data {R} map.yaw run function space_editor:mapping/look"]
     fn("mapping/position", lines)
     fn("mapping/vector", [
-        *[f"execute store result score #map_p{axis} se.v run data get {R} map.vector[{i}] 2000" for i, axis in enumerate("xyz")],
+        *[line for i, axis in enumerate("xyz") for line in read_fixed(f"map.vector[{i}]", f"#map_p{axis}")],
         "function space_editor:mapping/vector_scores",
         *[f"execute store result {R} map.result.vector[{i}] double 0.0005 run scoreboard players get #map_o{axis} se.v" for i, axis in enumerate("xyz")],
     ])
     fn("mapping/look", [
-        f"execute store result score #map_yaw se.v run data get {R} map.yaw 1000",
-        f"execute store result score #map_pitch se.v run data get {R} map.pitch 1000",
+        f"execute unless data {R} map.pitch run data modify {R} map.pitch set value 0f",
+        *read_fixed("map.yaw", "#map_yaw", 1000, 0.001, "float"),
+        *read_fixed("map.pitch", "#map_pitch", 1000, 0.001, "float"),
         f"execute store result score #map_angle se.v run data get {R} map.source.rotationY 1000",
         "scoreboard players operation #map_yaw se.v -= #map_angle se.v",
         f"execute store result score #map_angle se.v run data get {R} map.target.rotationY 1000",
@@ -206,12 +236,13 @@ def generate_pairs() -> None:
         f'$data modify {R} editA.partnerId set value $(b)', f'$data modify {R} editB.partnerId set value $(a)',
         f'data modify {R} editA.side set value "A"', f'data modify {R} editB.side set value "B"',
         f'$data modify {R} editB.idText set value "region_$(b)"',
+        *[f'execute unless data {R} edit{side}.roomId run data modify {R} edit{side}.roomId set value ""' for side in ("A", "B")],
     ])
     fn("pair/store", [
         f'$data modify {D} regions[{{id:$(a)}}] set from {R} editA',
         f'$execute if data {D} regions[{{id:$(b)}}] run data modify {D} regions[{{id:$(b)}}] set from {R} editB',
         f'$execute unless data {D} regions[{{id:$(b)}}] run data modify {D} regions append from {R} editB',
-        f'$data modify {D} regionPairs[{{id:$(id)}}] set from {R} pair',
+        f'$execute if data {D} regionPairs[{{id:$(id)}}] run data modify {D} regionPairs[{{id:$(id)}}] set from {R} pair',
     ])
     fn("pair/snapshot", [
         f"data modify {R} pairBefore set value {{}}",
@@ -297,6 +328,7 @@ def generate_pair_edits() -> None:
         f"data remove {R} hit", f'$data modify {R} hit set from {D} regions[{{id:$(id)}}]',
         f"execute unless data {R} hit.pairId run return 0",
         f"function space_editor:pair/load with {R} hit", "function space_editor:pair/snapshot",
+        f"execute unless data {R} editA.id run return 0", f"execute unless data {R} editB.id run return 0",
         f"data modify {R} frame set from {R} hit",
         f'$data modify {R} frame.rotationY set value $(rotationY)', f'$data modify {R} frame.flipY set value $(flipY)b',
         f"execute unless data {R} frame{{rotationY:0}} unless data {R} frame{{rotationY:90}} unless data {R} frame{{rotationY:180}} unless data {R} frame{{rotationY:270}} run return 0",
@@ -312,10 +344,13 @@ def generate_pair_edits() -> None:
     insert_before(F / "region/apply_hit.mcfunction", 'scoreboard players set #mask_deleted', [
         f'execute if data {R} {{activeTool:"delete"}} if data {R} hit.pairId run return run function space_editor:pair/delete with {R} hit',
     ])
+    insert_before(F / "region/delete_selected.mcfunction", "execute unless data", [
+        f"execute if data {R} hit.pairId run return run function space_editor:pair/delete with {R} hit",
+    ])
     fn("pair/delete", [
         '$function space_editor:pair/load {pairId:$(pairId)}',
         f"execute unless data {R} pair.id run return 0", "function space_editor:pair/snapshot",
-        f'data modify {R} pairBefore.masks set from {D} masks',
+        f'function space_editor:pair/capture_attached with {R} pair',
         f'data modify {R} pairOperation set value "delete"',
         "function space_editor:pair/action", f"function space_editor:pair/remove with {R} pair",
         f"data remove {R} hit", f'data modify {D} selectedId set value ""',
@@ -325,6 +360,11 @@ def generate_pair_edits() -> None:
         *[f'$data remove {D} regions[{{id:$({key})}}]' for key in ("a", "b")],
         *[f'$data remove {D} masks[{{regionId:$({key})}}]' for key in ("a", "b")],
         f'$data remove {D} regionPairs[{{id:$(id)}}]',
+    ])
+    fn("pair/capture_attached", [
+        f'data modify {R} pairBefore.masks set value []',
+        *[f'$data modify {R} pairBefore.masks append from {D} masks[{{regionId:$({key})}}]' for key in ("a", "b")],
+        f'$data modify {R} pairBefore.group set from {D} linkGroups[{{id:$(groupId)}}]',
     ])
 
 
@@ -455,8 +495,10 @@ def generate_pair_preview() -> None:
     carrier = stage4.DISPLAY_BLOCKS["guide"]
     # Existing Region frame remains the base. Extra pose indicators are rebuilt
     # only on edits/resume; pending placement updates existing entities in place.
+    insert_before(F / "preview/spawn.mcfunction", "summon minecraft:block_display", [
+        f"execute if data {R} renderRegion.pairId run return run function space_editor:pair/preview_region",
+    ])
     append(F / "preview/spawn.mcfunction", [
-        f"execute if data {R} renderRegion.pairId run function space_editor:pair/preview_region",
         f'execute if data {R} renderRegion{{kind:"proxy_existence"}} run function space_editor:pair/preview_existence with {R} renderRegion',
     ])
     fn("pair/preview_existence", [
@@ -464,11 +506,17 @@ def generate_pair_preview() -> None:
     ])
     fn("pair/preview_region", [
         f"data modify {R} frame set from {R} renderRegion", "function space_editor:pair/frame",
+        f"function space_editor:pair/spawn_frame with {R} frame",
         "function space_editor:pair/direction_points", f"function space_editor:pair/spawn_directions with {R} frame",
     ])
+    fn("pair/spawn_frame", [
+        f'$execute in $(dimension) run summon minecraft:block_display $(x1) $(y1) $(z1) {{Tags:["space_editor.preview","space_editor.region","space_editor.pair_frame_new"],block_state:{{Name:"{stage4.DISPLAY_BLOCKS["selection"]}"}},transformation:{{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]}},brightness:{{block:15,sky:15}},width:64f,height:64f}}',
+        '$execute in $(dimension) run scoreboard players set @e[tag=space_editor.pair_frame_new] se.id $(id)',
+        '$execute in $(dimension) run tag @e[tag=space_editor.pair_frame_new] remove space_editor.pair_frame_new',
+    ])
     points = []
-    for rot, quat in ((0, "[0f,0f,0f,1f]"), (90, "[0f,0.70710677f,0f,0.70710677f]"),
-                      (180, "[0f,1f,0f,0f]"), (270, "[0f,-0.70710677f,0f,0.70710677f]")):
+    for rot, quat in ((0, "[0f,0f,0f,1f]"), (90, "[0f,-0.70710677f,0f,0.70710677f]"),
+                      (180, "[0f,1f,0f,0f]"), (270, "[0f,0.70710677f,0f,0.70710677f]")):
         points += [f'execute if data {R} frame{{rotationY:{rot}}} run data modify {R} frame.frontRotation set value {quat}']
     for flip, quat in ((0, "[-0.70710677f,0f,0f,0.70710677f]"), (1, "[0.70710677f,0f,0f,0.70710677f]")):
         points += [f'execute if data {R} frame{{flipY:{flip}b}} run data modify {R} frame.upRotation set value {quat}']
@@ -493,7 +541,7 @@ def generate_pair_preview() -> None:
     fn("pair/spawn_directions", direction_lines)
     pending = [
         *[f'execute unless data {R} pairCandidate{{dimension:"minecraft:{dim}"}} in minecraft:{dim} run kill @e[tag=space_editor.pair_pending,distance=0..]' for dim in ("overworld", "the_nether", "the_end")],
-        f'$execute in $(dimension) unless entity @e[tag=space_editor.pair_pending_box,distance=0..] run summon minecraft:block_display $(x1) $(y1) $(z1) {{Tags:["space_editor.preview","space_editor.pair_pending","space_editor.pair_pending_box"],block_state:{{Name:"{carrier}"}},transformation:{{translation:[-0.5f,0f,-0.5f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]}},brightness:{{block:15,sky:15}},width:64f,height:64f}}',
+        f'$execute in $(dimension) unless entity @e[tag=space_editor.pair_pending_box,distance=0..] run summon minecraft:block_display $(x1) $(y1) $(z1) {{Tags:["space_editor.preview","space_editor.pair_pending","space_editor.pair_pending_box"],block_state:{{Name:"{carrier}"}},transformation:{{translation:[0f,0f,0f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]}},brightness:{{block:15,sky:15}},width:64f,height:64f}}',
         '$execute in $(dimension) as @e[tag=space_editor.pair_pending_box] run tp @s $(x1) $(y1) $(z1)',
         '$execute in $(dimension) as @e[tag=space_editor.pair_pending_box] run data merge entity @s {transformation:{scale:[$(sx)f,$(sy)f,$(sz)f]}}',
         "function space_editor:pair/direction_points",
@@ -510,10 +558,267 @@ def generate_pair_preview() -> None:
     fn("pair/pending_directions", pending_dir)
 
 
+def generate_teleport() -> None:
+    stage4.stage3.stage2.stage1.js(stage4.DP / "data/space_editor/tags/function/before_teleport.json", {"values": []})
+    stage4.stage3.stage2.stage1.js(stage4.DP / "data/space_editor/tags/function/after_teleport.json", {"values": []})
+    insert_before(F / "load.mcfunction", "function space_editor:pair/cancel", [
+        "scoreboard objectives add se.tp_lock dummy", "scoreboard objectives add se.tp_cd dummy",
+        "scoreboard objectives add se.instance dummy",
+    ])
+    append(F / "tick.mcfunction", ["function space_editor:teleport/tick"])
+    fn("teleport/tick", [
+        "scoreboard players add @a se.tp_lock 0", "scoreboard players add @a se.tp_cd 0",
+        "scoreboard players add @a se.instance 0",
+        "scoreboard players remove @a[scores={se.tp_cd=1..}] se.tp_cd 1",
+        f"data modify {R} playerSnapshots set value []", f"data modify {R} spaceLinkContacts set value []",
+        f"data modify {R} transfers set value []",
+        "execute as @a at @s run function space_editor:teleport/snapshot",
+        f"execute if data {D} {{editMode:1b}} run return 0",
+        "execute as @a[gamemode=!spectator] at @s run function space_editor:link/player",
+        "function #space_editor:before_teleport",
+        "execute as @a[gamemode=!spectator] at @s run function space_editor:teleport/player",
+        "function #space_editor:after_teleport",
+    ])
+    fn("teleport/snapshot", [
+        f'data modify {R} snapshot set value {{uuid:[I;0,0,0,0],point:[0d,0d,0d],rotation:[0f,0f],instanceId:0}}',
+        f'data modify {R} snapshot.uuid set from entity @s UUID',
+        f'data modify {R} snapshot.point set from entity @s Pos',
+        f'data modify {R} snapshot.rotation set from entity @s Rotation',
+        f'execute store result {R} snapshot.instanceId int 1 run scoreboard players get @s se.instance',
+        f'data modify {R} snapshot.dimension set from entity @s Dimension',
+        f'data modify {R} playerSnapshots append from {R} snapshot',
+    ])
+    # Player Dimension is present in saved entity NBT. Keep a vanilla fallback
+    # for fake players used by the test harness and for the editing MVP.
+    insert_before(F / "teleport/snapshot.mcfunction", "data modify storage space_editor:runtime playerSnapshots", [
+        *[f'execute if dimension minecraft:{dim} run data modify {R} snapshot.dimension set value "minecraft:{dim}"' for dim in ("overworld", "the_nether", "the_end")],
+    ])
+    fn("teleport/read_snapshot", [
+        f'data modify {R} playerLookup.uuid set from entity @s UUID', f'data remove {R} tpPlayer',
+        f'function space_editor:teleport/find_snapshot with {R} playerLookup',
+        *[line for i, axis in enumerate("xyz") for line in read_fixed(f"tpPlayer.point[{i}]", f"#sp{axis}")],
+    ])
+    fn("teleport/find_snapshot", [f'$data modify {R} tpPlayer set from {R} playerSnapshots[{{uuid:$(uuid)}}]'])
+    contains = ["scoreboard players set #inside se.v 0", '$execute unless dimension $(dimension) run return 0']
+    for axis in "xyz":
+        contains += [f'execute store result score #bound se.v run data get {R} spatialRegion.{axis}1m 2',
+                     f'execute if score #sp{axis} se.v < #bound se.v run return 0',
+                     f'execute store result score #bound se.v run data get {R} spatialRegion.{axis}2m 2',
+                     f'execute if score #sp{axis} se.v >= #bound se.v run return 0']
+    contains += ["scoreboard players set #inside se.v 1"]
+    fn("mapping/contains", contains)
+    fn("teleport/player", [
+        f"execute if data {D} {{editMode:1b}} run return 0",
+        'execute if entity @s[tag=space_editor.editing] run return 0',
+        'execute if entity @s[gamemode=spectator] run return 0',
+        'execute unless entity @s[nbt={DeathTime:0s}] run return 0',
+        "function space_editor:teleport/read_snapshot",
+        f"execute unless data {R} tpPlayer.point run return 0",
+        "scoreboard players set #still_locked se.v 0", f"data remove {R} tpHit",
+        f"data modify {R} tpQueue set from {D} regions",
+        f"execute if data {R} tpQueue[0] run function space_editor:teleport/scan",
+        "execute if score #still_locked se.v matches 0 run scoreboard players set @s se.tp_lock 0",
+        "execute if score @s se.tp_lock matches 1.. run return 0",
+        "execute if score @s se.tp_cd matches 1.. run return 0",
+        f"execute unless data {R} tpHit run return 0",
+        f"function space_editor:teleport/resolve with {R} tpHit",
+    ])
+    fn("teleport/scan", [
+        f"data modify {R} spatialRegion set from {R} tpQueue[0]",
+        f'execute if data {R} spatialRegion{{kind:"teleport"}} run function space_editor:teleport/check',
+        f"data remove {R} tpQueue[0]",
+        f"execute if data {R} tpQueue[0] run function space_editor:teleport/scan",
+    ])
+    fn("teleport/check", [
+        f"function space_editor:mapping/contains with {R} spatialRegion",
+        "execute unless score #inside se.v matches 1 run return 0",
+        f"execute store result score #tp_pair se.v run data get {R} spatialRegion.pairId 1",
+        "execute if score @s se.tp_lock = #tp_pair se.v run scoreboard players set #still_locked se.v 1",
+        f"execute unless data {R} tpHit run data modify {R} tpHit set from {R} spatialRegion",
+    ])
+    fn("teleport/resolve", [
+        f"data remove {R} tpTarget", f"data remove {R} tpPair",
+        f'$data modify {R} tpTarget set from {D} regions[{{id:$(partnerId)}}]',
+        f'$data modify {R} tpPair set from {D} regionPairs[{{id:$(pairId),kind:"teleport"}}]',
+        f"execute unless data {R} tpTarget.id run return 0", f"execute unless data {R} tpPair.id run return 0",
+        f'execute if data {R} tpPair{{direction:"one_way"}} if data {R} tpHit{{side:"B"}} run return 0',
+        f'data modify {R} map set value {{}}',
+        f'data modify {R} map.source set from {R} tpHit', f'data modify {R} map.target set from {R} tpTarget',
+        f'data modify {R} map.point set from {R} tpPlayer.point',
+        f'data modify {R} map.yaw set from {R} tpPlayer.rotation[0]', f'data modify {R} map.pitch set from {R} tpPlayer.rotation[1]',
+        "function space_editor:mapping/position",
+        "scoreboard players set #tp_safe se.v 0",
+        f"function space_editor:teleport/check_destination with {R} map.result",
+        "execute unless score #tp_safe se.v matches 1 run return 0",
+        "scoreboard players set #tp_success se.v 0",
+        f"function space_editor:teleport/perform with {R} map.result",
+        "execute unless score #tp_success se.v matches 1 run return 0",
+        f"execute store result score @s se.tp_lock run data get {R} tpPair.id 1",
+        f"execute store result score @s se.tp_cd run data get {R} tpPair.cooldownTicks 1",
+        f'data modify {R} transfer set from {R} tpPlayer',
+        f'data modify {R} transfer.pairId set from {R} tpPair.id',
+        f'data modify {R} transfer.sourceRegionId set from {R} tpHit.id',
+        f'data modify {R} transfer.targetRegionId set from {R} tpTarget.id',
+        f'data modify {R} transfer.sourceRoomId set from {R} tpHit.roomId',
+        f'data modify {R} transfer.targetRoomId set from {R} tpTarget.roomId',
+        f'data modify {R} transfer.destination set from {R} map.result',
+        f'data modify {R} transfers append from {R} transfer',
+    ])
+    # Conservative upright body envelope. No terrain clearing or automatic
+    # force-loading; pending arrival is retried while the source is occupied.
+    safety = []
+    for x in (-0.3, 0.299999):
+        for z in (-0.3, 0.299999):
+            for y in (0, 0.9, 1.799999):
+                safety += [f'$execute in $(dimension) positioned $(x) $(y) $(z) unless loaded ~{x} ~{y} ~{z} run return 0',
+                           f'$execute in $(dimension) positioned $(x) $(y) $(z) unless block ~{x} ~{y} ~{z} #space_editor:ray_pass run return 0']
+    fn("teleport/check_destination", safety + ["scoreboard players set #tp_safe se.v 1"])
+    fn("teleport/perform", ['$execute in $(dimension) store success score #tp_success se.v run tp @s $(x) $(y) $(z) $(yaw) $(pitch)'])
+    fn("link/player", [
+        'execute unless entity @s[nbt={DeathTime:0s}] run return 0',
+        "function space_editor:teleport/read_snapshot",
+        f"data modify {R} linkQueue set from {D} regions",
+        f"execute if data {R} linkQueue[0] run function space_editor:link/scan",
+    ])
+    fn("link/scan", [
+        f"data modify {R} spatialRegion set from {R} linkQueue[0]",
+        f'execute if data {R} spatialRegion{{kind:"space_link"}} run function space_editor:link/check',
+        f"data remove {R} linkQueue[0]",
+        f"execute if data {R} linkQueue[0] run function space_editor:link/scan",
+    ])
+    fn("link/check", [
+        f"function space_editor:mapping/contains with {R} spatialRegion",
+        "execute unless score #inside se.v matches 1 run return 0",
+        f"function space_editor:link/contact with {R} spatialRegion",
+    ])
+    fn("link/contact", [
+        f'data modify {R} map set value {{}}',
+        f'data modify {R} map.source set from {R} spatialRegion',
+        f'$data modify {R} map.target set from {D} regions[{{id:$(partnerId)}}]',
+        f'execute unless data {R} map.target.id run return 0',
+        f'data modify {R} map.point set from {R} tpPlayer.point',
+        f'data modify {R} map.yaw set from {R} tpPlayer.rotation[0]', f'data modify {R} map.pitch set from {R} tpPlayer.rotation[1]',
+        'function space_editor:mapping/position',
+        f'data modify {R} linkContact set from {R} tpPlayer',
+        f'$data modify {R} linkContact.pairId set value $(pairId)',
+        f'$data modify {R} linkContact.sourceRegionId set value $(id)',
+        f'$data modify {R} linkContact.targetRegionId set value $(partnerId)',
+        f'data modify {R} linkContact.sourceRoomId set from {R} spatialRegion.roomId',
+        f'data modify {R} linkContact.targetRoomId set from {R} map.target.roomId',
+        f'data modify {R} linkContact.destination set from {R} map.result',
+        f'data modify {R} spaceLinkContacts append from {R} linkContact',
+    ])
+
+
+def generate_link_contract() -> None:
+    insert_before(F / "load.mcfunction", "function space_editor:pair/cancel", [
+        f"execute unless data {D} linkGroups run data modify {D} linkGroups set value []",
+        "function space_editor:link/validate_groups",
+    ])
+    fn("pair/configure", [
+        '$function space_editor:pair/load {pairId:$(id)}',
+        f"execute unless data {R} editA.id run return 0", f"execute unless data {R} editB.id run return 0",
+        "function space_editor:pair/snapshot",
+        f'$data modify {R} pair.groupId set value $(groupId)',
+        f'$data modify {R} pair.roomA set value "$(roomA)"', f'$data modify {R} pair.roomB set value "$(roomB)"',
+        f'$data modify {R} pair.direction set value "$(direction)"', f'$data modify {R} pair.cooldownTicks set value $(cooldownTicks)',
+        f"execute store result score #config_group se.v run data get {R} pair.groupId 1",
+        f"execute store result score #config_cool se.v run data get {R} pair.cooldownTicks 1",
+        "execute unless score #config_group se.v matches 0.. run return 0",
+        "execute unless score #config_cool se.v matches 0..1200 run return 0",
+        f'execute unless data {R} pair{{direction:"both"}} unless data {R} pair{{direction:"one_way"}} run return 0',
+        f'$execute if score #config_group se.v matches 1.. if data {D} linkGroups[{{id:$(groupId)}}] unless data {D} linkGroups[{{id:$(groupId),roomA:"$(roomA)",roomB:"$(roomB)"}}] run return run ' + message("GroupのRoom対応が一致しません。", "red"),
+        f'$execute if score #config_group se.v matches 1.. unless data {D} linkGroups[{{id:$(groupId)}}] run data modify {D} linkGroups append value {{id:$(groupId),roomA:"$(roomA)",roomB:"$(roomB)"}}',
+        f'data modify {R} editA.roomId set from {R} pair.roomA', f'data modify {R} editB.roomId set from {R} pair.roomB',
+        f'data modify {R} pairOperation set value "configure"', "function space_editor:pair/commit",
+        "function space_editor:link/clean_groups",
+    ])
+    fn("proxy_existence/set_room", [
+        f'$execute unless data {D} regions[{{id:$(id),kind:"proxy_existence"}}] run return 0',
+        f'$data modify {D} regions[{{id:$(id)}}].roomId set value "$(roomId)"',
+    ])
+    append(F / "pair/commit.mcfunction", ["function space_editor:link/validate_groups"])
+    append(F / "pair/delete.mcfunction", ["function space_editor:link/clean_groups", "function space_editor:link/validate_groups"])
+    fn("link/clean_groups", [
+        f"data modify {R} cleanGroups set from {D} linkGroups",
+        f"execute if data {R} cleanGroups[0] run function space_editor:link/clean_next",
+    ])
+    fn("link/clean_next", [
+        f"function space_editor:link/clean_one with {R} cleanGroups[0]",
+        f"data remove {R} cleanGroups[0]", f"execute if data {R} cleanGroups[0] run function space_editor:link/clean_next",
+    ])
+    fn("link/clean_one", [f'$execute unless data {D} regionPairs[{{groupId:$(id)}}] run data remove {D} linkGroups[{{id:$(id)}}]'])
+    fn("link/validate_groups", [
+        f"data modify {R} linkWarnings set value []", f"data modify {R} validationPairs set from {D} regionPairs",
+        f"execute if data {R} validationPairs[0] run function space_editor:link/validate_next",
+        f"execute if data {R} linkWarnings[0] run " + message("TP / SpaceLinkの範囲または変換に不整合があります。/function space_editor:link/status で確認してください。", "yellow"),
+    ])
+    fn("link/validate_next", [
+        f"data modify {R} validationPair set from {R} validationPairs[0]",
+        f'execute if data {R} validationPair{{kind:"teleport"}} unless data {R} validationPair{{groupId:0}} run function space_editor:link/validate_pair with {R} validationPair',
+        f"data remove {R} validationPairs[0]", f"execute if data {R} validationPairs[0] run function space_editor:link/validate_next",
+    ])
+    fn("link/validate_pair", [
+        # Filter a queue so several peers are supported.
+        f"data modify {R} comparePeers set from {D} regionPairs",
+        f"execute if data {R} comparePeers[0] run function space_editor:link/compare_next with {R} validationPair",
+    ])
+    fn("link/compare_next", [
+        f'data modify {R} peerPair set from {R} comparePeers[0]',
+        f'$execute if data {R} peerPair{{groupId:$(groupId),kind:"space_link"}} run function space_editor:link/compare',
+        f'data remove {R} comparePeers[0]', f'execute if data {R} comparePeers[0] run function space_editor:link/compare_next with {R} validationPair',
+    ])
+    for record, prefix in (("validationPair", "tp"), ("peerPair", "sl")):
+        fn(f"link/load_{prefix}", [
+            *[f'$data modify {R} {prefix}{side} set from {D} regions[{{id:$({side.lower()})}}]' for side in ("A", "B")],
+        ])
+    compare = [f"function space_editor:link/load_tp with {R} validationPair",
+               f"function space_editor:link/load_sl with {R} peerPair",
+               "scoreboard players set #link_mismatch se.v 0"]
+    for prefix in ("tp", "sl"):
+        compare += [f'data modify {R} map set value {{point:[0d,0d,0d],vector:[1d,2d,3d]}}',
+                    f'data modify {R} map.source set from {R} {prefix}A', f'data modify {R} map.target set from {R} {prefix}B',
+                    "function space_editor:mapping/position"]
+        if prefix == "tp":
+            compare += [f'data modify {R} expectedMapping set from {R} map.result']
+        else:
+            compare += [f'execute store success score #link_mismatch se.v run data modify {R} expectedMapping set from {R} map.result']
+    for side in ("A", "B"):
+        compare += [f'data modify {R} compareDimension set from {R} tp{side}.dimension',
+                    f'execute store success score #dimension_diff se.v run data modify {R} compareDimension set from {R} sl{side}.dimension',
+                    'execute if score #dimension_diff se.v matches 1 run scoreboard players set #link_mismatch se.v 1']
+        for axis in "xyz":
+            for edge, op in ((1, "<"), (2, ">")):
+                compare += [f'execute store result score #inner se.v run data get {R} tp{side}.{axis}{edge}m 1',
+                            f'execute store result score #outer se.v run data get {R} sl{side}.{axis}{edge}m 1',
+                            f'execute if score #inner se.v {op} #outer se.v run scoreboard players set #link_mismatch se.v 1']
+    compare += [f'data modify {R} linkWarning set value {{reason:"transform_or_containment_mismatch"}}',
+                f'data modify {R} linkWarning.teleportPairId set from {R} validationPair.id',
+                f'data modify {R} linkWarning.spaceLinkPairId set from {R} peerPair.id',
+                f'execute if score #link_mismatch se.v matches 1 run data modify {R} linkWarnings append from {R} linkWarning']
+    fn("link/compare", compare)
+    fn("link/status", [
+        "function space_editor:link/validate_groups",
+        'tellraw @s [{text:"Link warnings: ",color:"yellow"},{nbt:"linkWarnings",storage:"space_editor:runtime"}]',
+    ])
+    append(F / "load.mcfunction", [message("第5段階: ペアRegion編集・TP。/function space_editor:pair/help", target="@a")])
+    append(F / "status.mcfunction", ['tellraw @s [{text:"Region pairs: ",color:"aqua"},{nbt:"regionPairs",storage:"space_editor:document"}]'])
+    append(F / "menu.mcfunction", [message("ペアRegion: TP / SpaceLink接続棒。操作: /function space_editor:pair/help")])
+    fn("pair/help", [
+        message("接続棒で元Regionを選択 → 視線で相手を配置 → 右クリックで確定。"),
+        message("Shift+右クリック: 作業開始方向から左右で90度回転、上下でFlipY。配置後も接続棒でA/Bを選択して編集。"),
+        message("面伸縮は対応ローカル面が連動。移動・回転・反転は選択側のみ。削除はペア両方。"),
+        message("TP開始: /function space_editor:play。SpaceLinkは本人を転送しません。"),
+        message("Proxy存在範囲棒: 単独Regionを存在範囲として登録。模倣生成は06で追加します。"),
+    ])
+
+
 def main() -> None:
     stage4.main()
     generate_transform()
     generate_pairs()
+    generate_teleport()
+    generate_link_contract()
     print(f"Generated stage-5 Space Editor: {len(list(F.rglob('*.mcfunction')))} functions")
 
 

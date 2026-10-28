@@ -28,6 +28,11 @@ scoreboard objectives add se.pheld dummy
 scoreboard objectives add se.pbase dummy
 scoreboard objectives add se.prot dummy
 scoreboard objectives add se.pflip dummy
+scoreboard objectives add se.tp_lock dummy
+scoreboard objectives add se.tp_cd dummy
+scoreboard objectives add se.instance dummy
+execute unless data storage space_editor:document linkGroups run data modify storage space_editor:document linkGroups set value []
+function space_editor:link/validate_groups
 function space_editor:pair/cancel
 function space_editor:mask/rebuild_all
 execute if entity @a[tag=space_editor.editing] run function space_editor:preview/resync
@@ -50,3 +55,4 @@ schedule function space_editor:special/cleanup 1s replace
 tellraw @a {"text": "[Space Editor] 第2段階: Fill / Copy / Pasteを読み込みました。", "color": "aqua"}
 tellraw @a {"text": "[Space Editor] 第3段階: 水平回転 / FlipY変換を読み込みました。", "color": "aqua"}
 tellraw @a {"text": "[Space Editor] 第4段階: Mask生成・編集・可視化を読み込みました。", "color": "aqua"}
+tellraw @a {"text": "[Space Editor] 第5段階: ペアRegion編集・TP。/function space_editor:pair/help", "color": "aqua"}

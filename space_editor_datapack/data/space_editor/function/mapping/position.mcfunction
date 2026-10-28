@@ -23,10 +23,25 @@ execute store result score #map_target_z se.v run data get storage space_editor:
 execute store result score #map_tmp se.v run data get storage space_editor:runtime map.target.z2m 1
 scoreboard players operation #map_target_z se.v += #map_tmp se.v
 execute store result score #map_px se.v run data get storage space_editor:runtime map.point[0] 2000
+scoreboard players operation #quant_next se.v = #map_px se.v
+scoreboard players add #quant_next se.v 1
+execute store result storage space_editor:runtime quantized double 0.0005 run scoreboard players get #quant_next se.v
+execute store success score #quant_diff se.v run data modify storage space_editor:runtime quantized set from storage space_editor:runtime map.point[0]
+execute if score #quant_diff se.v matches 0 run scoreboard players operation #map_px se.v = #quant_next se.v
 scoreboard players operation #map_px se.v -= #map_source_x se.v
 execute store result score #map_py se.v run data get storage space_editor:runtime map.point[1] 2000
+scoreboard players operation #quant_next se.v = #map_py se.v
+scoreboard players add #quant_next se.v 1
+execute store result storage space_editor:runtime quantized double 0.0005 run scoreboard players get #quant_next se.v
+execute store success score #quant_diff se.v run data modify storage space_editor:runtime quantized set from storage space_editor:runtime map.point[1]
+execute if score #quant_diff se.v matches 0 run scoreboard players operation #map_py se.v = #quant_next se.v
 scoreboard players operation #map_py se.v -= #map_source_y se.v
 execute store result score #map_pz se.v run data get storage space_editor:runtime map.point[2] 2000
+scoreboard players operation #quant_next se.v = #map_pz se.v
+scoreboard players add #quant_next se.v 1
+execute store result storage space_editor:runtime quantized double 0.0005 run scoreboard players get #quant_next se.v
+execute store success score #quant_diff se.v run data modify storage space_editor:runtime quantized set from storage space_editor:runtime map.point[2]
+execute if score #quant_diff se.v matches 0 run scoreboard players operation #map_pz se.v = #quant_next se.v
 scoreboard players operation #map_pz se.v -= #map_source_z se.v
 function space_editor:mapping/vector_scores
 data modify storage space_editor:runtime map.result set value {point:[0d,0d,0d],vector:[0d,0d,0d],yaw:0f,pitch:0f}

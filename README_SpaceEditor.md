@@ -1,12 +1,12 @@
-# Space Editor — 第4段階（Mask生成・編集・可視化）
+# Space Editor — 第5段階（ペアRegion編集・TP）
 
 Minecraft Java Edition 26.1 用のライブ編集データパックです。現行 runtime の namespace は
 `space_editor:`、保存先は `storage space_editor:document` です。旧 `editor:` runtime と
 `storage editor:data` は使用しません。
 
-現在ロードされる実装は、01 の Region 編集、02 の Fill / Copy / Paste、03 の回転・上下反転に、
-04 の Mask 生成・編集・可視化を追加した版です。Mask は Region を参照する独立 Object として保存し、
-編集用ガイドと実ゲーム用の低α Display を分離しています。
+現在ロードされる実装は、01〜04に共通ペアRegion編集と05のTPを追加した版です。
+TeleportとSpaceLinkは独立したペア、ProxyExistenceは単独Regionです。
+06の模倣生成・同期は未実装です。Maskは従来どおり独立Objectとして動作します。
 
 ## ライブ環境
 
@@ -34,11 +34,11 @@ Minecraft Java Edition 26.1 用のライブ編集データパックです。現�
 
 ## 実装段階と生成
 
-generator の依存順は `stage4 -> stage3 -> stage2 -> stage1 -> resources` です。
-最新の04を生成する場合は次を実行します。
+generator の依存順は `stage5 -> stage4 -> stage3 -> stage2 -> stage1 -> resources` です。
+最新の05を生成する場合は次を実行します。
 
 ```powershell
-python tools/build_space_editor_stage4.py
+python tools/build_space_editor_stage5.py
 ```
 
 各段階を単独で生成する入口も残しています。
@@ -47,6 +47,7 @@ python tools/build_space_editor_stage4.py
 - 02 Fill / Copy / Paste: `tools/build_space_editor_stage2.py`
 - 03 Paste transform: `tools/build_space_editor_stage3.py`
 - 04 Mask: `tools/build_space_editor_stage4.py`
+- 05 共通ペア編集 / TP: `tools/build_space_editor_stage5.py`
 - 共有描画アセットのみ: `tools/build_space_editor_resources.py`
 
 ### 01: Region
@@ -112,6 +113,47 @@ Mask 本体の手編集元は、Minecraft が直接読む
 `space_editor:document` の `masks`、`nextMaskId` を含む既存フィールドやワールドデータを、
 生成や旧実装の整理で削除・初期化しないでください。
 
+### 05: ペアRegionとTP
+
+1. `F3+T`、`/reload`、`/function space_editor:start`。
+2. 範囲選択棒で元Regionを作り、TP接続棒で右クリックする。
+3. 相手側のプレビューを視線で移動する。Shift+右クリックは、棒を持ち始めた向きを
+   基準として左／右を見れば90度回転、上／下を見ればFlipYを切り替える。
+4. 通常の右クリックで配置を確定する。削除棒または持ち替えで未確定配置を取り消す。
+5. 配置後は同じ接続棒でA／Bそれぞれを選び、Shift操作で回転・反転できる。
+   移動棒は選択側だけを移動する。面伸縮棒は双方の対応ローカル面だけを動かす。
+6. `/function space_editor:play` で編集表示を隠し、TPを有効にする。
+
+緑の3D矢印がローカル前（+Z）、黄色がローカル上（+Y）です。ラベルに種類、pairId、
+A/B、回転、反転を表示します。SpaceLink接続棒も同じ操作ですが、本人をTPしません。
+Proxy存在範囲棒は既存Regionを単独の存在範囲として登録します。
+接続棒の選択では別種別を除外し、同距離は既存Regionの保存順で決定します。
+
+回転は中心固定です。3×4など奇数・偶数混合の範囲では境界が半ブロック座標になります。
+面伸縮は選択面だけを移動し、相手も対応するローカル面だけを移動します。どちらかが
+高さ・サイズ制限に違反すれば両方とも保存しません。全体拡縮は各面を同量ずつ増減します。
+ペアの削除は両Regionと付属Maskをまとめて1操作として記録し、他のペアや存在範囲を残します。
+
+TPは足元点をmin以上・maxExclusive未満で判定し、両方向に対応します。編集モード中は停止します。
+到着したペア内に留まる間は再転送せず、退出・再侵入とクールダウン満了後に再転送できます。
+未ロードの出口や、幅0.6×高さ1.8の到着範囲に通行対象外ブロックがある場合は転送を待ちます。
+地形の変更や自動チャンクロードは行いません。FlipYは座標とpitchの変換で、本人の重力・身体・
+カメラのロールを反転するものではありません。速度の適用は今回のTP対象外です。
+
+Room／Groupの関連付けと片方向指定は補助APIで設定できます。IDはラベルと`status`で確認します。
+
+```mcfunction
+/function space_editor:pair/configure {id:1,groupId:1,roomA:"room_a",roomB:"room_b",direction:"both",cooldownTicks:20}
+/function space_editor:proxy_existence/set_room {id:5,roomId:"room_a"}
+/function space_editor:pair/set_pose {id:1,rotationY:90,flipY:1}
+/function space_editor:link/status
+```
+
+`direction`は`both`または`one_way`（A→B）。Groupを共有するTPとSpaceLinkの変換・包含関係が
+一致しなければ警告し、相手ペアの位置は変更しません。Group未指定のペアは独立して使えます。
+ペアRegionの各辺は0.1〜32ブロック、座標は各軸±500,000ブロック以内です。
+追加APIと06への接続契約は[paired-regions.md](docs/paired-regions.md)を参照してください。
+
 ## 主な操作
 
 - 範囲選択棒: 右クリック1回目で A、2回目で B
@@ -151,13 +193,14 @@ namespace ではないため削除しません。blockstate の割り当ては `
 GameTest を実行します。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/test_space_editor_stage4.ps1
+pwsh -File tools/test_space_editor_stage5.ps1
 ```
 
 - Stage 01: `tools/SpaceEditorStage1GameTest.java`
 - Stage 02: `tools/SpaceEditorStage2GameTest.java` / `tools/test_space_editor_stage2.ps1`
 - Stage 03: `tools/SpaceEditorStage3GameTest.java` / `tools/test_space_editor_stage3.ps1`
 - Stage 04: `tools/SpaceEditorStage4GameTest.java` / `tools/test_space_editor_stage4.ps1`
+- Stage 05: `tools/SpaceEditorStage5GameTest.java` / `tools/test_space_editor_stage5.ps1`
 
 JSON／mcmeta はすべて parse し、現行 function 参照が `space_editor:` 内で解決することも確認します。
 GameTest 成功はクライアント描画や実マウス操作の確認を代替しません。

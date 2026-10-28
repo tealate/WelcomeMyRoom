@@ -1,7 +1,7 @@
 execute if data storage space_editor:runtime frame{rotationY:0} run data modify storage space_editor:runtime frame.frontRotation set value [0f,0f,0f,1f]
-execute if data storage space_editor:runtime frame{rotationY:90} run data modify storage space_editor:runtime frame.frontRotation set value [0f,0.70710677f,0f,0.70710677f]
+execute if data storage space_editor:runtime frame{rotationY:90} run data modify storage space_editor:runtime frame.frontRotation set value [0f,-0.70710677f,0f,0.70710677f]
 execute if data storage space_editor:runtime frame{rotationY:180} run data modify storage space_editor:runtime frame.frontRotation set value [0f,1f,0f,0f]
-execute if data storage space_editor:runtime frame{rotationY:270} run data modify storage space_editor:runtime frame.frontRotation set value [0f,-0.70710677f,0f,0.70710677f]
+execute if data storage space_editor:runtime frame{rotationY:270} run data modify storage space_editor:runtime frame.frontRotation set value [0f,0.70710677f,0f,0.70710677f]
 execute if data storage space_editor:runtime frame{flipY:0b} run data modify storage space_editor:runtime frame.upRotation set value [-0.70710677f,0f,0f,0.70710677f]
 execute if data storage space_editor:runtime frame{flipY:1b} run data modify storage space_editor:runtime frame.upRotation set value [0.70710677f,0f,0f,0.70710677f]
 scoreboard players operation #arrow_front_x se.v = #fcx se.v
