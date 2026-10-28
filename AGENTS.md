@@ -7,6 +7,8 @@
 - Keep changes small and directly tied to the user's requested experiment.
 - Preserve unrelated working-tree changes. Never revert, replace, or delete them.
 - Do not commit, push, or broadly rewrite assets unless the user explicitly asks.
+- When the user explicitly requests a push, use the `WelcomeMyRoom` remote at
+  `https://github.com/tealate/WelcomeMyRoom` unless they name another destination.
 
 ## Live editing workflow
 
