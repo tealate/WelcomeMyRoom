@@ -1,4 +1,5 @@
 execute unless entity @s[type=minecraft:player] run return 0
+function space_editor:pair/cancel
 tag @a remove space_editor.editing
 tag @s add space_editor.editing
 data modify storage space_editor:document editMode set value 1b
@@ -24,3 +25,6 @@ execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft
 execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"mask"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"mask"}},minecraft:item_model="editor:tool_mask",minecraft:custom_name={text:"Mask棒",color:"light_purple",italic:false},minecraft:lore=[{text:"Regionを右クリック: Mask生成",italic:false},{text:"削除棒はMaskを先に削除",color:"gray",italic:false}]]
 function space_editor:preview/resync
 tellraw @s {"text": "[Space Editor] 編集モード。範囲棒を2回右クリックしてRegionを作成します。", "color": "aqua"}
+execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"teleport"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"teleport"}},minecraft:item_model="editor:tool_teleport",minecraft:custom_name={text:"TP接続棒",color:"aqua",italic:false},minecraft:lore=[{text:"右クリック: 対象選択 / 配置確定",italic:false},{text:"Shift+右クリック: 基準Yawの左右で回転・上下でFlipY",italic:false}]]
+execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"space_link"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"space_link"}},minecraft:item_model="editor:tool_space_link",minecraft:custom_name={text:"SpaceLink接続棒",color:"green",italic:false},minecraft:lore=[{text:"右クリック: 対象選択 / 配置確定",italic:false},{text:"Shift+右クリック: 基準Yawの左右で回転・上下でFlipY",italic:false}]]
+execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"proxy_existence"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"proxy_existence"}},minecraft:item_model="editor:tool_proxy_existence",minecraft:custom_name={text:"Proxy存在範囲棒",color:"yellow",italic:false},minecraft:lore=[{text:"右クリック: 対象選択 / 配置確定",italic:false},{text:"Shift+右クリック: 基準Yawの左右で回転・上下でFlipY",italic:false}]]

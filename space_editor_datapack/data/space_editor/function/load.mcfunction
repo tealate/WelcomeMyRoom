@@ -22,6 +22,13 @@ execute in minecraft:the_nether run kill @e[tag=space_editor.selection_capture]
 execute in minecraft:the_end run kill @e[tag=space_editor.selection_capture]
 execute unless data storage space_editor:document masks run data modify storage space_editor:document masks set value []
 execute unless data storage space_editor:document nextMaskId run data modify storage space_editor:document nextMaskId set value 1
+execute unless data storage space_editor:document regionPairs run data modify storage space_editor:document regionPairs set value []
+execute unless data storage space_editor:document nextPairId run data modify storage space_editor:document nextPairId set value 1
+scoreboard objectives add se.pheld dummy
+scoreboard objectives add se.pbase dummy
+scoreboard objectives add se.prot dummy
+scoreboard objectives add se.pflip dummy
+function space_editor:pair/cancel
 function space_editor:mask/rebuild_all
 execute if entity @a[tag=space_editor.editing] run function space_editor:preview/resync
 execute unless data storage space_editor:document templates run data modify storage space_editor:document templates set value []

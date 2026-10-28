@@ -2,3 +2,5 @@ $execute in $(dimension) positioned $(x1) $(y1) $(z1) run summon minecraft:block
 $execute in $(dimension) positioned $(cx) $(cy) $(cz) run summon minecraft:text_display ~ ~ ~ {Tags:["space_editor.preview","space_editor.label","space_editor.new"],text:'{"text":"$(idText)\n位置: ($(x1), $(y1), $(z1))\nサイズ: $(sx) × $(sy) × $(sz)","color":"white"}',billboard:"center",see_through:1b,shadow:1b,background:1073741824,alignment:"center",view_range:3f,width:64f,height:64f}
 $execute in $(dimension) run scoreboard players set @e[tag=space_editor.new] se.id $(id)
 $execute in $(dimension) run tag @e[tag=space_editor.new] remove space_editor.new
+execute if data storage space_editor:runtime renderRegion.pairId run function space_editor:pair/preview_region
+execute if data storage space_editor:runtime renderRegion{kind:"proxy_existence"} run function space_editor:pair/preview_existence with storage space_editor:runtime renderRegion

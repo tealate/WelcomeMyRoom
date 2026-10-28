@@ -1,0 +1,8 @@
+execute unless data storage space_editor:runtime pairCandidate{dimension:"minecraft:overworld"} in minecraft:overworld run kill @e[tag=space_editor.pair_pending,distance=0..]
+execute unless data storage space_editor:runtime pairCandidate{dimension:"minecraft:the_nether"} in minecraft:the_nether run kill @e[tag=space_editor.pair_pending,distance=0..]
+execute unless data storage space_editor:runtime pairCandidate{dimension:"minecraft:the_end"} in minecraft:the_end run kill @e[tag=space_editor.pair_pending,distance=0..]
+$execute in $(dimension) unless entity @e[tag=space_editor.pair_pending_box,distance=0..] run summon minecraft:block_display $(x1) $(y1) $(z1) {Tags:["space_editor.preview","space_editor.pair_pending","space_editor.pair_pending_box"],block_state:{Name:"minecraft:lime_glazed_terracotta"},transformation:{translation:[-0.5f,0f,-0.5f],scale:[$(sx)f,$(sy)f,$(sz)f],left_rotation:[0f,0f,0f,1f],right_rotation:[0f,0f,0f,1f]},brightness:{block:15,sky:15},width:64f,height:64f}
+$execute in $(dimension) as @e[tag=space_editor.pair_pending_box] run tp @s $(x1) $(y1) $(z1)
+$execute in $(dimension) as @e[tag=space_editor.pair_pending_box] run data merge entity @s {transformation:{scale:[$(sx)f,$(sy)f,$(sz)f]}}
+function space_editor:pair/direction_points
+function space_editor:pair/pending_directions with storage space_editor:runtime frame

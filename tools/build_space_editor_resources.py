@@ -34,6 +34,9 @@ TOOL_MODELS = {
     "paste": "minecraft:block/purple_concrete",
     "fill": "minecraft:block/gold_block",
     "mask": "minecraft:block/pink_concrete",
+    "teleport": "minecraft:block/light_blue_concrete",
+    "space_link": "minecraft:block/emerald_block",
+    "proxy_existence": "minecraft:block/yellow_concrete",
 }
 
 
@@ -211,6 +214,20 @@ def build_tool_resources() -> None:
                 "model": f"editor:item/tool_{name}",
             }
         })
+    for name, texture in (("front", "lime_concrete"), ("up", "yellow_concrete")):
+        # The item renderer centers model coordinates at (8,8,8). This stepped
+        # 3D arrow starts there and points along local +Z, visible from all sides.
+        write_json(RP / f"assets/editor/models/item/direction_{name}.json", {
+            "textures": {"accent": f"minecraft:block/{texture}"},
+            "elements": [_tool_box(a, b) for a, b in (
+                ([7, 7, 8], [9, 9, 18]), ([4, 4, 18], [12, 12, 20]),
+                ([5, 5, 20], [11, 11, 22]), ([6, 6, 22], [10, 10, 24]),
+                ([7, 7, 24], [9, 9, 26]),
+            )],
+        })
+        write_json(RP / f"assets/editor/items/direction_{name}.json", {
+            "model": {"type": "minecraft:model", "model": f"editor:item/direction_{name}"},
+        })
 
 
 def build_preview_resources() -> None:
@@ -325,6 +342,8 @@ def sync_live_resources() -> None:
     files += [RP / "assets/editor/models/block/selection_candidate.json"]
     files += [RP / f"assets/editor/models/item/tool_{name}.json" for name in TOOL_MODELS]
     files += [RP / f"assets/editor/items/tool_{name}.json" for name in TOOL_MODELS]
+    files += [RP / f"assets/editor/{folder}/direction_{name}.json"
+              for folder in ("models/item", "items") for name in ("front", "up")]
     for name in ("selection", "guide"):
         files += [
             RP / f"assets/editor/models/block/{name}.json",

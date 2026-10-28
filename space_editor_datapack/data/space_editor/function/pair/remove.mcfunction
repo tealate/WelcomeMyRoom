@@ -1,0 +1,5 @@
+$data remove storage space_editor:document regions[{id:$(a)}]
+$data remove storage space_editor:document regions[{id:$(b)}]
+$data remove storage space_editor:document masks[{regionId:$(a)}]
+$data remove storage space_editor:document masks[{regionId:$(b)}]
+$data remove storage space_editor:document regionPairs[{id:$(id)}]

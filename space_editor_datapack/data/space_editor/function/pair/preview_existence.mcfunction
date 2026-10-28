@@ -1,0 +1,1 @@
+$execute in $(dimension) positioned $(cx) $(cy) $(cz) run summon minecraft:text_display ~ ~0.5 ~ {Tags:["space_editor.preview","space_editor.label"],text:{text:"ProxyExistence #$(id)",color:"yellow"},billboard:"center",see_through:1b}
