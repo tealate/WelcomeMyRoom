@@ -1,1 +1,2 @@
+execute if data storage space_editor:document job{type:"paste",masked:1b} run return run function space_editor:job/clone_masked_chunk with storage space_editor:document job
 $return run clone from $(sourceDimension) $(chunkSourceX1) $(chunkSourceY1) $(chunkSourceZ1) $(chunkSourceX2) $(chunkSourceY2) $(chunkSourceZ2) to $(targetDimension) $(chunkTargetX) $(chunkTargetY) $(chunkTargetZ) strict replace force

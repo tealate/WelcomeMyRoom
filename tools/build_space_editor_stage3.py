@@ -51,6 +51,7 @@ def append(path: Path, additions: list[str]) -> None:
 
 def build_transform_tags() -> None:
     tag_root = DP / "data/space_editor/tags/block"
+    js(tag_root / "paste_air.json", {"values": ["minecraft:air", "minecraft:cave_air", "minecraft:void_air"]})
     names = {
         "allowed": tag_root / "transform_allowed.json",
         "stairs": tag_root / "transform_stairs.json",
@@ -66,6 +67,9 @@ def build_transform_tags() -> None:
         missing = [str(path) for path in names.values() if not path.exists()]
         if missing:
             raise FileNotFoundError("26.1 block classification is unavailable: " + ", ".join(missing))
+        allowed = json.loads(names["allowed"].read_text(encoding="utf-8"))
+        allowed["values"] = sorted(set(allowed["values"] + ["minecraft:water", "minecraft:lava"]))
+        js(names["allowed"], allowed)
         return
 
     sensitive = {
@@ -97,7 +101,7 @@ def build_transform_tags() -> None:
         elif full_cube == "true" and not (prop_names & sensitive):
             safe_cubes.append(block_id)
 
-    allowed = sorted(set(safe_cubes + ["minecraft:air", "minecraft:cave_air", "minecraft:void_air"] +
+    allowed = sorted(set(safe_cubes + ["minecraft:air", "minecraft:cave_air", "minecraft:void_air", "minecraft:water", "minecraft:lava"] +
                          sum(groups.values(), [])))
     for key, values in groups.items():
         js(names[key], {"replace": False, "values": sorted(set(values))})
@@ -147,7 +151,19 @@ def main() -> None:
         "scoreboard players add @a se.flip 0",
         "scoreboard players add @a se.intent 0",
         "execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] run function space_editor:paste_mode/held_tick",
-        "execute as @a[scores={se.ph=1..}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] run scoreboard players set @s se.ph 0",
+        "execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste_masked\"}}] run function space_editor:paste_mode/held_tick",
+        "execute as @a[scores={se.ph=1..}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste_masked\"}}] run scoreboard players set @s se.ph 0",
+    ])
+    # Both tools share input, hover and the transform session. The preview's
+    # mode is fixed at creation, even if a different wand confirms it.
+    path = F / "tick.mcfunction"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for needle in ("run function space_editor:selection/track", "run function space_editor:input/paste"):
+        original = next(line for line in lines if 'tool:"paste"' in line and needle in line)
+        lines.insert(lines.index(original) + 1, original.replace('tool:"paste"', 'tool:"paste_masked"'))
+    write(path, "\n".join(lines))
+    insert_before(F / "start.mcfunction", "function space_editor:preview/resync", [
+        'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"paste_masked"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:"paste_masked"}},minecraft:item_model="editor:tool_paste",minecraft:custom_name={text:"透過ペースト棒",color:"aqua",italic:false},minecraft:lore=[{text:"Airを無視してTemplateを貼付 / Shift右クリック:変換",italic:false}]]',
     ])
     fn("paste_mode/held_tick", [
         "execute if score @s se.ph matches 0 run function space_editor:paste_mode/begin",
@@ -158,6 +174,8 @@ def main() -> None:
         "execute store result score @s se.pyaw run data get entity @s Rotation[0] 1",
         "scoreboard players set @s se.rot 0",
         "scoreboard players set @s se.flip 0",
+        "execute if data storage space_editor:runtime pastePending.rotation store result score @s se.rot run data get storage space_editor:runtime pastePending.rotation 1",
+        "execute if data storage space_editor:runtime pastePending.flipY store result score @s se.flip run data get storage space_editor:runtime pastePending.flipY 1",
         "scoreboard players set @s se.ph 1",
     ])
     fn("paste_mode/read_intent", [
@@ -224,6 +242,8 @@ def main() -> None:
         '$data modify storage space_editor:runtime template set from storage space_editor:document templates[{id:$(id)}]',
         "execute unless data storage space_editor:runtime template.id run return run " + message("TemplateIDがDocumentにありません。", "red"),
         'data modify storage space_editor:runtime pastePending set value {id:0,version:1,targetDimension:"",x:0,y:0,z:0,w:0,h:0,d:0,sx:0,sy:0,sz:0,rotation:0,flipY:0b,owner0:0,owner1:0,owner2:0,owner3:0}',
+        'data modify storage space_editor:runtime pastePending.masked set value 0b',
+        'execute if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"paste_masked"}}] run data modify storage space_editor:runtime pastePending.masked set value 1b',
         "data modify storage space_editor:runtime pastePending.id set from storage space_editor:runtime template.id",
         "data modify storage space_editor:runtime pastePending.version set from storage space_editor:runtime template.version",
         "data modify storage space_editor:runtime pastePending.targetDimension set from storage space_editor:runtime targetDimension",
@@ -256,7 +276,8 @@ def main() -> None:
         "data modify storage space_editor:runtime targetDimension set from storage space_editor:runtime pastePending.targetDimension",
         "data modify storage space_editor:runtime targetPos set value [I;0,0,0]",
         *[f"data modify storage space_editor:runtime targetPos[{i}] set from storage space_editor:runtime pastePending.{axis}" for i, axis in enumerate("xyz")],
-        'data modify storage space_editor:runtime pasteTransform set value {rotation:0,flipY:0b}',
+        'data modify storage space_editor:runtime pasteTransform set value {rotation:0,flipY:0b,masked:0b}',
+        "data modify storage space_editor:runtime pasteTransform.masked set from storage space_editor:runtime pastePending.masked",
         "data modify storage space_editor:runtime pasteTransform.rotation set from storage space_editor:runtime pastePending.rotation",
         "data modify storage space_editor:runtime pasteTransform.flipY set from storage space_editor:runtime pastePending.flipY",
         "function space_editor:paste/start with storage space_editor:runtime lookup",
@@ -281,6 +302,8 @@ def main() -> None:
         "data modify storage space_editor:document job.outSz set from storage space_editor:runtime template.size[2]",
         "data modify storage space_editor:document job.rotation set from storage space_editor:runtime pasteTransform.rotation",
         "data modify storage space_editor:document job.flipY set from storage space_editor:runtime pasteTransform.flipY",
+        'data modify storage space_editor:document job.masked set value 0b',
+        "data modify storage space_editor:document job.masked set from storage space_editor:runtime pasteTransform.masked",
         *[f"data modify storage space_editor:document job.owner{i} set from storage space_editor:runtime lookup.owner{i}" for i in range(4)],
         "execute store result score #rotation se.v run data get storage space_editor:document job.rotation 1",
         "execute if score #rotation se.v matches 90 run function space_editor:paste/swap_job_xz",
@@ -332,8 +355,75 @@ def main() -> None:
     fn("job/unforceload_target", ['$execute in $(targetDimension) run forceload remove $(targetX) $(targetZ) $(targetX2) $(targetZ2)'])
 
     # Preserve the phase-2 strip clone as the fast path.
+    insert_before(F / "job/clone_chunk.mcfunction", "$return run clone", [
+        'execute if data storage space_editor:document job{type:"paste",masked:1b} run return run function space_editor:job/clone_masked_chunk with storage space_editor:document job',
+    ])
     original_tick = (F / "job/tick.mcfunction").read_text(encoding="utf-8").strip()
-    fn("job/fast_tick", original_tick)
+    advance = original_tick.index("scoreboard players operation #cursor se.v += #width se.v")
+    fn("job/advance_chunk", original_tick[advance:])
+    original_tick = original_tick[:advance] + "function space_editor:job/advance_chunk"
+    original_tick = original_tick.replace(
+        "execute unless score #clone_ok se.v matches 1 run return run function space_editor:job/fail",
+        'execute unless score #clone_ok se.v matches 1 if data storage space_editor:document job{type:"paste",masked:1b} run return run function space_editor:job/start_empty_check\n'
+        "execute unless score #clone_ok se.v matches 1 run return run function space_editor:job/fail")
+    fn("job/fast_tick", ['execute if data storage space_editor:document job{emptyCheck:1b} run return run function space_editor:job/empty_tick', original_tick])
+    fn("job/clone_masked_chunk", [
+        '$return run clone from $(sourceDimension) $(chunkSourceX1) $(chunkSourceY1) $(chunkSourceZ1) $(chunkSourceX2) $(chunkSourceY2) $(chunkSourceZ2) to $(targetDimension) $(chunkTargetX) $(chunkTargetY) $(chunkTargetZ) strict masked force',
+    ])
+    # Native masked clone reports failure for an empty strip. Only accept it
+    # after proving every source cell is Air and both ranges are loaded/in bounds.
+    # Persist this rare fallback and limit it to 256 cells/tick (no huge recursion).
+    fn("job/start_empty_check", [
+        'execute if score #area se.v > #limit se.v run return run function space_editor:job/fail',
+        'data modify storage space_editor:document job.emptyCheck set value 1b',
+        'data modify storage space_editor:document job.emptyCursor set value 0',
+        'execute store result storage space_editor:document job.emptyWidth int 1 run scoreboard players get #width se.v',
+        'function space_editor:job/empty_tick',
+    ])
+    fn("job/empty_tick", [
+        *[f"execute store result score #{score} se.v run data get storage space_editor:document job.{field} 1"
+          for score, field in (("empty_cursor", "emptyCursor"), ("empty_width", "emptyWidth"), ("sy", "sy"), ("sz", "sz"))],
+        'scoreboard players operation #empty_total se.v = #empty_width se.v',
+        'scoreboard players operation #empty_total se.v *= #sy se.v',
+        'scoreboard players operation #empty_total se.v *= #sz se.v',
+        'scoreboard players set #empty_budget se.v 256',
+        'function space_editor:job/empty_loop',
+    ])
+    empty_loop = [
+        'scoreboard players operation #ex se.v = #empty_cursor se.v',
+        'scoreboard players operation #ex se.v %= #empty_width se.v',
+        'scoreboard players operation #ez se.v = #empty_cursor se.v',
+        'scoreboard players operation #ez se.v /= #empty_width se.v',
+        'scoreboard players operation #ey se.v = #ez se.v',
+        'scoreboard players operation #ey se.v /= #sz se.v',
+        'scoreboard players operation #ez se.v %= #sz se.v',
+    ]
+    for end, field in (("Source", "1"), ("Target", "")):
+        for axis in "xyz":
+            empty_loop += [f"execute store result score #empty_pos se.v run data get storage space_editor:document job.chunk{end}{axis.upper()}{field} 1",
+                           f"scoreboard players operation #empty_pos se.v += #e{axis} se.v",
+                           f"execute store result storage space_editor:document job.block{end}{axis.upper()} int 1 run scoreboard players get #empty_pos se.v"]
+    empty_loop += [
+        'execute store success score #empty_valid se.v run function space_editor:job/check_empty_block with storage space_editor:document job',
+        'execute unless score #empty_valid se.v matches 1 run data remove storage space_editor:document job.emptyCheck',
+        'execute unless score #empty_valid se.v matches 1 run return run function space_editor:job/fail',
+        'scoreboard players add #empty_cursor se.v 1',
+        'execute store result storage space_editor:document job.emptyCursor int 1 run scoreboard players get #empty_cursor se.v',
+        'execute if score #empty_cursor se.v >= #empty_total se.v run return run function space_editor:job/empty_done',
+        'scoreboard players remove #empty_budget se.v 1',
+        'execute if score #empty_budget se.v matches 1.. run function space_editor:job/empty_loop',
+    ]
+    fn("job/empty_loop", empty_loop)
+    fn("job/check_empty_block", [
+        '$return run execute in $(sourceDimension) if block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:paste_air in $(targetDimension) if blocks $(blockTargetX) $(blockTargetY) $(blockTargetZ) $(blockTargetX) $(blockTargetY) $(blockTargetZ) $(blockTargetX) $(blockTargetY) $(blockTargetZ) all',
+    ])
+    fn("job/empty_done", [
+        'data remove storage space_editor:document job.emptyCheck',
+        'execute store result score #cursor se.v run data get storage space_editor:document job.cursorX 1',
+        'execute store result score #sx se.v run data get storage space_editor:document job.sx 1',
+        'scoreboard players operation #width se.v = #empty_width se.v',
+        'function space_editor:job/advance_chunk',
+    ])
     fn("job/tick", [
         'execute if data storage space_editor:document job{type:"paste",mode:"transformed"} run return run function space_editor:job/transformed_tick',
         "function space_editor:job/fast_tick",
@@ -462,6 +552,7 @@ def main() -> None:
         "execute store result storage space_editor:document job.completedBlocks int 1 run scoreboard players get #done se.v",
     ])
     fn("transform/skip_check", [
+        '$execute if data storage space_editor:document job{masked:1b} in $(sourceDimension) if block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:paste_air run return run scoreboard players set #skip se.v 1',
         '$execute in $(sourceDimension) unless block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:transform_allowed run return run function space_editor:transform/record_skipped',
         '$execute if data storage space_editor:document job{flipY:1b} in $(sourceDimension) if block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:transform_vertical_unsupported run return run function space_editor:transform/record_skipped',
     ])
@@ -761,7 +852,7 @@ def main() -> None:
 
     append(F / "menu.mcfunction", [
         message("Paste変換: 棒を持った時の正面を基準にShift＋左/右で90度回転、Shift＋上/下でFlipY。"),
-        message("変換設定は棒を持ち替えると0度 / FlipY OFFへ戻ります。キャンセル: /function space_editor:paste/cancel"),
+        message("透過ペースト棒はAirを無視。両ペースト棒で変換操作は共通、プレビュー中は持ち替えても設定を保持。キャンセル: /function space_editor:paste/cancel"),
     ])
     append(F / "status.mcfunction", [
         'tellraw @s [{text:"Paste transform: Rot=",color:"light_purple"},{score:{name:"@s",objective:"se.rot"}},{text:" / FlipY="},{score:{name:"@s",objective:"se.flip"}}]',

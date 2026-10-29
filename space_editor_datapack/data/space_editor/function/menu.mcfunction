@@ -9,5 +9,6 @@ tellraw @s {"text": "[Space Editor] Pasteは1回目で範囲表示、2回目で�
 tellraw @s {"text": "[Space Editor] Job: /function space_editor:job/pause | resume | retry | cancel", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] 再発行: /function space_editor:template/reissue {id:1}", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] Paste変換: 棒を持った時の正面を基準にShift＋左/右で90度回転、Shift＋上/下でFlipY。", "color": "aqua"}
-tellraw @s {"text": "[Space Editor] 変換設定は棒を持ち替えると0度 / FlipY OFFへ戻ります。キャンセル: /function space_editor:paste/cancel", "color": "aqua"}
+tellraw @s {"text": "[Space Editor] 透過ペースト棒はAirを無視。両ペースト棒で変換操作は共通、プレビュー中は持ち替えても設定を保持。キャンセル: /function space_editor:paste/cancel", "color": "aqua"}
 tellraw @s {"text": "[Space Editor] Mask: Mask棒でRegionを右クリック / 詳細: /function space_editor:mask/help", "color": "aqua"}
+tellraw @s {"text": "[Space Editor] ペアRegion: TP / SpaceLink接続棒。操作: /function space_editor:pair/help", "color": "aqua"}

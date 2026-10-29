@@ -26,7 +26,9 @@ execute if data storage space_editor:runtime hit{dimension:"minecraft:overworld"
 execute if data storage space_editor:runtime hit{dimension:"minecraft:overworld"} unless score #y2 se.v matches -63900..320000 run return run tellraw @s {"text": "[Space Editor] Overworldの高さ範囲を超えています。", "color": "red"}
 execute unless data storage space_editor:runtime hit{dimension:"minecraft:overworld"} unless score #y1 se.v matches 0..255999 run return run tellraw @s {"text": "[Space Editor] Nether/Endの高さ範囲を超えています。", "color": "red"}
 execute unless data storage space_editor:runtime hit{dimension:"minecraft:overworld"} unless score #y2 se.v matches 100..256000 run return run tellraw @s {"text": "[Space Editor] Nether/Endの高さ範囲を超えています。", "color": "red"}
+execute if data storage space_editor:runtime hit.spaceLinkGroupId run return run function space_editor:space_group/edit_bounds
+execute if data storage space_editor:runtime hit.pairId run return run function space_editor:pair/edit_bounds
 function space_editor:region/store_hit with storage space_editor:runtime hit
 function space_editor:mask/record_region_sync with storage space_editor:runtime hit
-function space_editor:preview/resync
+function space_editor:preview/update_hit
 tellraw @s {"text": "[Space Editor] Regionを更新しました。", "color": "green"}

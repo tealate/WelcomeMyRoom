@@ -1,2 +1,3 @@
+$execute if data storage space_editor:document job{masked:1b} in $(sourceDimension) if block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:paste_air run return run scoreboard players set #skip se.v 1
 $execute in $(sourceDimension) unless block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:transform_allowed run return run function space_editor:transform/record_skipped
 $execute if data storage space_editor:document job{flipY:1b} in $(sourceDimension) if block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:transform_vertical_unsupported run return run function space_editor:transform/record_skipped

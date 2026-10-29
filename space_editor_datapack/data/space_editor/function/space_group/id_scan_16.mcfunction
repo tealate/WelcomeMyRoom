@@ -1,0 +1,17 @@
+execute unless data storage space_editor:runtime sgIds[0] run return 0
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next
+execute if data storage space_editor:runtime sgIds[0] run function space_editor:space_group/id_next

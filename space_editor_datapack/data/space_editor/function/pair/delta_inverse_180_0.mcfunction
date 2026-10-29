@@ -1,0 +1,10 @@
+scoreboard players operation #dlx1 se.v = #dwx2 se.v
+scoreboard players operation #dlx1 se.v *= #minus_one se.v
+scoreboard players operation #dlx2 se.v = #dwx1 se.v
+scoreboard players operation #dlx2 se.v *= #minus_one se.v
+scoreboard players operation #dly1 se.v = #dwy1 se.v
+scoreboard players operation #dly2 se.v = #dwy2 se.v
+scoreboard players operation #dlz1 se.v = #dwz2 se.v
+scoreboard players operation #dlz1 se.v *= #minus_one se.v
+scoreboard players operation #dlz2 se.v = #dwz1 se.v
+scoreboard players operation #dlz2 se.v *= #minus_one se.v

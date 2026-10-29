@@ -1,0 +1,16 @@
+execute if data storage space_editor:runtime map.source{rotationY:0,flipY:0b} run function space_editor:mapping/inverse_0_0
+execute if data storage space_editor:runtime map.source{rotationY:0,flipY:1b} run function space_editor:mapping/inverse_0_1
+execute if data storage space_editor:runtime map.source{rotationY:90,flipY:0b} run function space_editor:mapping/inverse_90_0
+execute if data storage space_editor:runtime map.source{rotationY:90,flipY:1b} run function space_editor:mapping/inverse_90_1
+execute if data storage space_editor:runtime map.source{rotationY:180,flipY:0b} run function space_editor:mapping/inverse_180_0
+execute if data storage space_editor:runtime map.source{rotationY:180,flipY:1b} run function space_editor:mapping/inverse_180_1
+execute if data storage space_editor:runtime map.source{rotationY:270,flipY:0b} run function space_editor:mapping/inverse_270_0
+execute if data storage space_editor:runtime map.source{rotationY:270,flipY:1b} run function space_editor:mapping/inverse_270_1
+execute if data storage space_editor:runtime map.target{rotationY:0,flipY:0b} run function space_editor:mapping/forward_0_0
+execute if data storage space_editor:runtime map.target{rotationY:0,flipY:1b} run function space_editor:mapping/forward_0_1
+execute if data storage space_editor:runtime map.target{rotationY:90,flipY:0b} run function space_editor:mapping/forward_90_0
+execute if data storage space_editor:runtime map.target{rotationY:90,flipY:1b} run function space_editor:mapping/forward_90_1
+execute if data storage space_editor:runtime map.target{rotationY:180,flipY:0b} run function space_editor:mapping/forward_180_0
+execute if data storage space_editor:runtime map.target{rotationY:180,flipY:1b} run function space_editor:mapping/forward_180_1
+execute if data storage space_editor:runtime map.target{rotationY:270,flipY:0b} run function space_editor:mapping/forward_270_0
+execute if data storage space_editor:runtime map.target{rotationY:270,flipY:1b} run function space_editor:mapping/forward_270_1

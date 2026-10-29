@@ -1,4 +1,6 @@
 $execute unless dimension $(dimension) run return 0
+execute if data storage space_editor:runtime {activeTool:"pair_select"} if data storage space_editor:runtime candidate.kind run function space_editor:pair/filter
+execute if data storage space_editor:runtime {activeTool:"pair_select"} if data storage space_editor:runtime candidate.kind if score #pair_filter se.v matches 0 run return 0
 execute store result score #lo se.v run data get storage space_editor:runtime candidate.x1m 1
 execute store result score #hi se.v run data get storage space_editor:runtime candidate.x2m 1
 execute if score #px se.v < #lo se.v run return 0

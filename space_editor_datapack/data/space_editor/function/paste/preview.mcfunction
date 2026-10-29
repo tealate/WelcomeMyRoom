@@ -1,6 +1,8 @@
 $data modify storage space_editor:runtime template set from storage space_editor:document templates[{id:$(id)}]
 execute unless data storage space_editor:runtime template.id run return run tellraw @s {"text": "[Space Editor] TemplateIDがDocumentにありません。", "color": "red"}
 data modify storage space_editor:runtime pastePending set value {id:0,version:1,targetDimension:"",x:0,y:0,z:0,w:0,h:0,d:0,sx:0,sy:0,sz:0,rotation:0,flipY:0b,owner0:0,owner1:0,owner2:0,owner3:0}
+data modify storage space_editor:runtime pastePending.masked set value 0b
+execute if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"paste_masked"}}] run data modify storage space_editor:runtime pastePending.masked set value 1b
 data modify storage space_editor:runtime pastePending.id set from storage space_editor:runtime template.id
 data modify storage space_editor:runtime pastePending.version set from storage space_editor:runtime template.version
 data modify storage space_editor:runtime pastePending.targetDimension set from storage space_editor:runtime targetDimension

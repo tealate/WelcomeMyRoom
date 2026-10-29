@@ -80,9 +80,12 @@ def main() -> None:
     ])
 
     insert_before(F / "start.mcfunction", "function space_editor:preview/resync", [
-        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"copy\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"copy\"}},minecraft:custom_name={text:\"コピー棒\",color:\"green\",italic:false},minecraft:lore=[{text:\"Regionを見て右クリック: Template保存\",italic:false}]]",
-        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"paste\"}},minecraft:custom_name={text:\"ペースト棒\",color:\"light_purple\",italic:false},minecraft:lore=[{text:\"3ブロック先までの候補位置へTemplateを貼付\",italic:false}]]",
-        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"fill\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"fill\"}},minecraft:custom_name={text:\"Fill棒\",color:\"gold\",italic:false},minecraft:lore=[{text:\"3ブロック先までの候補位置を含むRegionをFill\",italic:false}]]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"copy\"}},minecraft:item_model=\"editor:tool_copy\"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"copy\"}}]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"copy\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"copy\"}},minecraft:item_model=\"editor:tool_copy\",minecraft:custom_name={text:\"コピー棒\",color:\"green\",italic:false},minecraft:lore=[{text:\"Regionを見て右クリック: Template保存\",italic:false}]]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}},minecraft:item_model=\"editor:tool_paste\"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"paste\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"paste\"}},minecraft:item_model=\"editor:tool_paste\",minecraft:custom_name={text:\"ペースト棒\",color:\"light_purple\",italic:false},minecraft:lore=[{text:\"3ブロック先までの候補位置へTemplateを貼付\",italic:false}]]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"fill\"}},minecraft:item_model=\"editor:tool_fill\"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"fill\"}}]",
+        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"fill\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"fill\"}},minecraft:item_model=\"editor:tool_fill\",minecraft:custom_name={text:\"Fill棒\",color:\"gold\",italic:false},minecraft:lore=[{text:\"3ブロック先までの候補位置を含むRegionをFill\",italic:false}]]",
     ])
 
     # Copy selects the nearest Region through the phase-1 AABB ray test.
@@ -156,8 +159,9 @@ def main() -> None:
         message("選択予定位置を含むRegionがありません。", "red"),
     ])
     fn("fill/offhand", [
-        "data remove storage space_editor:runtime fillBlock",
-        "data modify storage space_editor:runtime fillBlock set from entity @s equipment.offhand.id",
+        'data modify storage space_editor:runtime fillBlock set value "minecraft:air"',
+        "execute if items entity @s weapon.offhand * run data modify storage space_editor:runtime fillBlock set from entity @s equipment.offhand.id",
+        *[f'execute if items entity @s weapon.offhand minecraft:{fluid}_bucket run data modify storage space_editor:runtime fillBlock set value "minecraft:{fluid}"' for fluid in ("water", "lava")],
         "function space_editor:fill/apply",
     ])
     fn("fill/apply", [

@@ -1,0 +1,16 @@
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_scan_256

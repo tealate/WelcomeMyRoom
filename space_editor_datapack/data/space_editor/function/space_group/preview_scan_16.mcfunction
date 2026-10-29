@@ -1,0 +1,17 @@
+execute unless data storage space_editor:runtime sgPreviewQueue[0] run return 0
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
+execute if data storage space_editor:runtime sgPreviewQueue[0] run function space_editor:space_group/preview_next
