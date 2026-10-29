@@ -1,3 +1,4 @@
+$execute if data storage space_editor:document regionPairs[{id:$(pairId)}].spaceLinkGroupId run return run tellraw @s {"text": "[Space Editor] 移行済みSpaceLinkはRegionIDを指定してspace_group/deleteを使用してください。", "color": "red"}
 $function space_editor:pair/load {pairId:$(pairId)}
 execute unless data storage space_editor:runtime pair.id run return 0
 function space_editor:pair/snapshot

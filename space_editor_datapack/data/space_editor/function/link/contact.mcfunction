@@ -1,16 +1,18 @@
-data modify storage space_editor:runtime map set value {}
-data modify storage space_editor:runtime map.source set from storage space_editor:runtime spatialRegion
-$data modify storage space_editor:runtime map.target set from storage space_editor:document regions[{id:$(partnerId)}]
-execute unless data storage space_editor:runtime map.target.id run return 0
-data modify storage space_editor:runtime map.point set from storage space_editor:runtime tpPlayer.point
-data modify storage space_editor:runtime map.yaw set from storage space_editor:runtime tpPlayer.rotation[0]
-data modify storage space_editor:runtime map.pitch set from storage space_editor:runtime tpPlayer.rotation[1]
-function space_editor:mapping/position
-data modify storage space_editor:runtime linkContact set from storage space_editor:runtime tpPlayer
-$data modify storage space_editor:runtime linkContact.pairId set value $(pairId)
-$data modify storage space_editor:runtime linkContact.sourceRegionId set value $(id)
-$data modify storage space_editor:runtime linkContact.targetRegionId set value $(partnerId)
-data modify storage space_editor:runtime linkContact.sourceRoomId set from storage space_editor:runtime spatialRegion.roomId
-data modify storage space_editor:runtime linkContact.targetRoomId set from storage space_editor:runtime map.target.roomId
-data modify storage space_editor:runtime linkContact.destination set from storage space_editor:runtime map.result
-data modify storage space_editor:runtime spaceLinkContacts append from storage space_editor:runtime linkContact
+data remove storage space_editor:runtime contactGroup
+$data modify storage space_editor:runtime contactGroup set from storage space_editor:document spaceLinkGroups[{id:$(spaceLinkGroupId)}]
+execute unless data storage space_editor:runtime contactGroup.id run return 0
+data modify storage space_editor:runtime contactSource set from storage space_editor:runtime spatialRegion
+data modify storage space_editor:runtime sg.group.localSize set from storage space_editor:runtime contactGroup.localSize
+data modify storage space_editor:runtime frame set from storage space_editor:runtime contactSource
+scoreboard players set #sg_ok se.v 1
+function space_editor:space_group/validate_frame
+execute unless score #sg_ok se.v matches 1 run return 0
+execute store result score #contact_count se.v run data get storage space_editor:runtime contactGroup.members
+execute unless score #contact_count se.v matches 2..4096 run return 0
+data modify storage space_editor:runtime contactMembers set from storage space_editor:runtime contactGroup.members
+scoreboard players set #source_member se.v 0
+function space_editor:link/source_scan
+execute unless score #source_member se.v matches 1 run return 0
+data modify storage space_editor:runtime contactMembers set from storage space_editor:runtime contactGroup.members
+data modify storage space_editor:runtime contactSeen set value []
+function space_editor:link/target_scan

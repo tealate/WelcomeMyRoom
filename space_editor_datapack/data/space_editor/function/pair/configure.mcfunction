@@ -1,3 +1,4 @@
+$execute if data storage space_editor:document regionPairs[{id:$(id)}].spaceLinkGroupId run return run function space_editor:space_group/configure_legacy {id:$(id),groupId:$(groupId),roomA:"$(roomA)",roomB:"$(roomB)"}
 $function space_editor:pair/load {pairId:$(id)}
 execute unless data storage space_editor:runtime editA.id run return 0
 execute unless data storage space_editor:runtime editB.id run return 0

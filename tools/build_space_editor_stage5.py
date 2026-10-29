@@ -953,6 +953,8 @@ def main() -> None:
     generate_teleport()
     generate_link_contract()
     generate_region_edit_fix()
+    import build_space_link_groups
+    build_space_link_groups.generate(__import__(__name__))
     print(f"Generated stage-5 Space Editor: {len(list(F.rglob('*.mcfunction')))} functions")
 
 

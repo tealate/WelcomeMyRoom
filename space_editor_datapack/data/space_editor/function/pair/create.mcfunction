@@ -1,3 +1,6 @@
+$data modify storage space_editor:runtime requestedPairKind set value "$(kind)"
+$execute if data storage space_editor:runtime {requestedPairKind:"space_link"} run return run function space_editor:space_group/add {source:$(source)}
+$execute if data storage space_editor:document regions[{id:$(source)}].spaceLinkGroupId run return 0
 scoreboard players set #pair_ok se.v 0
 data remove storage space_editor:runtime editA
 $data modify storage space_editor:runtime editA set from storage space_editor:document regions[{id:$(source)}]

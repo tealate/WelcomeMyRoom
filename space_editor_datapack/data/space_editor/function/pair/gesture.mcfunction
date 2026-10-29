@@ -1,3 +1,4 @@
+execute if entity @a[tag=space_editor.editing] unless entity @s[tag=space_editor.editing] run return run tellraw @s {"text": "[Space Editor] 別プレイヤーが編集中です。終了後に開始してください。", "color": "red"}
 function space_editor:pair/read_intent
 execute if score @s se.intent matches 1 run scoreboard players remove @s se.prot 90
 execute if score @s se.intent matches 2 run scoreboard players add @s se.prot 90

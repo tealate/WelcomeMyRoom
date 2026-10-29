@@ -20,6 +20,8 @@ data modify storage space_editor:document job.outSy set from storage space_edito
 data modify storage space_editor:document job.outSz set from storage space_editor:runtime template.size[2]
 data modify storage space_editor:document job.rotation set from storage space_editor:runtime pasteTransform.rotation
 data modify storage space_editor:document job.flipY set from storage space_editor:runtime pasteTransform.flipY
+data modify storage space_editor:document job.masked set value 0b
+data modify storage space_editor:document job.masked set from storage space_editor:runtime pasteTransform.masked
 data modify storage space_editor:document job.owner0 set from storage space_editor:runtime lookup.owner0
 data modify storage space_editor:document job.owner1 set from storage space_editor:runtime lookup.owner1
 data modify storage space_editor:document job.owner2 set from storage space_editor:runtime lookup.owner2

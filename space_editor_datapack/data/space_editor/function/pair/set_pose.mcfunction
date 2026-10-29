@@ -1,3 +1,4 @@
+$execute if data storage space_editor:document regions[{id:$(id)}].spaceLinkGroupId run return run function space_editor:space_group/set_pose {id:$(id),rotationY:$(rotationY),flipY:$(flipY)}
 scoreboard players set #pair_ok se.v 0
 data remove storage space_editor:runtime hit
 $data modify storage space_editor:runtime hit set from storage space_editor:document regions[{id:$(id)}]

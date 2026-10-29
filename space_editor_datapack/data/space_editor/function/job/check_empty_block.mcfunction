@@ -1,0 +1,1 @@
+$return run execute in $(sourceDimension) if block $(blockSourceX) $(blockSourceY) $(blockSourceZ) #space_editor:paste_air in $(targetDimension) if blocks $(blockTargetX) $(blockTargetY) $(blockTargetZ) $(blockTargetX) $(blockTargetY) $(blockTargetZ) $(blockTargetX) $(blockTargetY) $(blockTargetZ) all

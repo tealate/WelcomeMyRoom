@@ -87,9 +87,16 @@ public class SpaceEditorStage5GameTest {
         cmd("data modify storage space_editor:runtime pairCandidate set from storage space_editor:document regions[{id:"+a+"}]");
         cmd("data modify storage space_editor:runtime pairCandidate.x1m set value 20000");
         cmd("data modify storage space_editor:runtime pairCandidate.x2m set value 23000");
-        cmd("function space_editor:pair/create {source:"+a+",kind:\""+kind+"\"}");
+        cmd("function space_editor:pair/create {source:"+a+",kind:\"teleport\"}");
         check(region(a).contains("pairId"),"pair committed");
         check(document().getListOrEmpty("regionPairs").size()==pairsBefore+1,"exactly one pair record per creation");
+        if(kind.equals("space_link")){
+            // Actual pre-migration fixture: no new SpaceLink pair creation API.
+            int pairId=region(a).getIntOr("pairId",0),b=region(a).getIntOr("partnerId",0);
+            cmd("data modify storage space_editor:document regions[{id:"+a+"}].kind set value \"space_link\"");
+            cmd("data modify storage space_editor:document regions[{id:"+b+"}].kind set value \"space_link\"");
+            cmd("data modify storage space_editor:document regionPairs[{id:"+pairId+"}].kind set value \"space_link\"");
+        }
         return a;
     }
     static void pose(int id,int rotation,int flip){cmd("function space_editor:pair/set_pose {id:"+id+",rotationY:"+rotation+",flipY:"+flip+"}");}
@@ -123,7 +130,7 @@ public class SpaceEditorStage5GameTest {
                 check(java.util.Arrays.equals(region(a).getIntArray("localSize").orElseThrow(),region(b).getIntArray("localSize").orElseThrow()),"local dimensions synchronized");
             }
         }
-        int a=pair("space_link"),b=region(a).getIntOr("partnerId",0);
+        int a=pair("teleport"),b=region(a).getIntOr("partnerId",0);
         var partner=region(b).copy();
         pose(a,90,1);check(region(b).equals(partner),"pose does not move partner");
         near(region(a).getDoubleOr("cx",999),1.5,"3x5 rotated center x");
@@ -153,7 +160,7 @@ public class SpaceEditorStage5GameTest {
         cmd("data modify storage space_editor:runtime pairCandidate set from storage space_editor:document regions[{id:"+mixed+"}]");
         cmd("data modify storage space_editor:runtime pairCandidate.x1m set value 20000");
         cmd("data modify storage space_editor:runtime pairCandidate.x2m set value 23000");
-        cmd("function space_editor:pair/create {source:"+mixed+",kind:\"space_link\"}");
+        cmd("function space_editor:pair/create {source:"+mixed+",kind:\"teleport\"}");
         pose(mixed,90,0);
         near(region(mixed).getDoubleOr("x1",999),-.5,"mixed parity center rotation");
         near(region(mixed).getListOrEmpty("min").getDoubleOr(0,999),-.5,"legacy min retains fractional boundary");
@@ -197,7 +204,7 @@ public class SpaceEditorStage5GameTest {
         for(var e:helper.getLevel().getAllEntities())check(!e.entityTags().contains("space_editor.preview"),"play hides every edit indicator");
     }
     static void config(int regionId,int group){
-        cmd("function space_editor:pair/configure {id:"+region(regionId).getIntOr("pairId",0)+",groupId:"+group+",roomA:\"room_a\",roomB:\"room_b\",direction:\"both\",cooldownTicks:20}");
+        cmd("function space_editor:pair/configure {id:"+region(regionId).getIntOr("pairId",region(regionId).getIntOr("legacyPairId",0))+",groupId:"+group+",roomA:\"room_a\",roomB:\"room_b\",direction:\"both\",cooldownTicks:20}");
     }
     static void snapshot(){
         cmd("data modify storage space_editor:runtime playerSnapshots set value []");
@@ -219,12 +226,14 @@ public class SpaceEditorStage5GameTest {
         cmd("data modify storage space_editor:document regionPairs set value []");
         cmd("data modify storage space_editor:document actions set value []");
         int tp=pair("teleport"),dest=region(tp).getIntOr("partnerId",0),sl=pair("space_link");
+        int slDest=region(sl).getIntOr("partnerId",0);
         config(tp,1);config(sl,1);
         check(runtime().getListOrEmpty("linkWarnings").isEmpty(),"matching independent pairs validate");
         pose(dest,90,1);
         check(runtime().getListOrEmpty("linkWarnings").size()==1,"independent pair pose mismatch warns");
-        pose(region(sl).getIntOr("partnerId",0),90,1);
+        pose(slDest,90,1);
         check(runtime().getListOrEmpty("linkWarnings").isEmpty(),"matching new poses clear warning");
+        int slThird=groupAdd(sl,40000);
         var links=document().getListOrEmpty("linkGroups").copy();
         cmd("function space_editor:load");
         check(document().getListOrEmpty("linkGroups").equals(links),"group survives reload");
@@ -261,12 +270,18 @@ public class SpaceEditorStage5GameTest {
             pcmd("scoreboard players set @s se.tp_cd 0");pcmd("scoreboard players set @s se.tp_lock 0");
             cmd("function space_editor:teleport/tick");
             check(runtime().getListOrEmpty("playerSnapshots").size()==2,"all players captured before any TP");
-            check(runtime().getListOrEmpty("spaceLinkContacts").size()==2,"both SpaceLink contacts use pre-TP positions");
+            check(runtime().getListOrEmpty("spaceLinkContacts").size()==4,"both players contact both targets before TP");
             check(runtime().getListOrEmpty("transfers").size()==2,"both players TP independently in one tick");
+            check(runtime().getCompoundOrEmpty("testBefore").getListOrEmpty("contacts").size()==4 && runtime().getCompoundOrEmpty("testBefore").getListOrEmpty("transfers").isEmpty(),"before hook sees all contacts and no transfers");
+            check(runtime().getCompoundOrEmpty("testAfter").getListOrEmpty("transfers").size()==2,"after hook sees both successful transfers");
+            var thirdPoints=new java.util.HashMap<String,Tag>();
+            for(var v:runtime().getListOrEmpty("spaceLinkContacts")){var c=(CompoundTag)v;if(c.getIntOr("targetRegionId",0)==slThird)thirdPoints.put(c.get("uuid").toString(),c.getCompoundOrEmpty("destination").get("point").copy());}
             near(runtime().getListOrEmpty("playerSnapshots").getCompoundOrEmpty(0).getListOrEmpty("point").getDoubleOr(0,999),.5,"snapshot unchanged by transfer");
             near(other.getX(),22,"second player mapping independent");
             cmd("function space_editor:teleport/tick");
             check(runtime().getListOrEmpty("transfers").isEmpty(),"next tick suppresses both loops");
+            check(runtime().getListOrEmpty("spaceLinkContacts").size()==4,"B retains routes to A and C after TP");
+            for(var v:runtime().getListOrEmpty("spaceLinkContacts")){var c=(CompoundTag)v;if(c.getIntOr("targetRegionId",0)==slThird)check(c.getCompoundOrEmpty("destination").get("point").equals(thirdPoints.get(c.get("uuid").toString())),"C mapped position continuous across A to B TP");}
         }finally{if(addFirst)list.remove(player);helper.getLevel().getServer().getPlayerList().remove(other);}
         // Cross-dimension mapping uses identical math, with loaded/safe target.
         player.setPos(.5,80.5,1.5);pcmd("scoreboard players set @s se.tp_cd 0");pcmd("scoreboard players set @s se.tp_lock 0");
@@ -279,7 +294,212 @@ public class SpaceEditorStage5GameTest {
         select(tp,"delete",0);pcmd("function space_editor:region/apply_hit");
         check(document().getListOrEmpty("linkGroups").size()==1,"shared group retained for SpaceLink");
         select(sl,"delete",0);pcmd("function space_editor:region/apply_hit");
-        check(document().getListOrEmpty("linkGroups").isEmpty(),"unreferenced group collected");
+        check(document().getListOrEmpty("linkGroups").isEmpty(),"unreferenced Room association collected");
+        check(region(slDest).contains("spaceLinkGroupId") && region(slThird).contains("spaceLinkGroupId"),"TP regression cleanup leaves two SpaceLink survivors");
+    }
+    static CompoundTag group(int id){for(var v:document().getListOrEmpty("spaceLinkGroups"))if(v instanceof CompoundTag g && g.getIntOr("id",0)==id)return g;throw new AssertionError("Missing group "+id);}
+    static int groupAdd(int sourceId,int x){
+        int id=document().getIntOr("nextId",0);
+        cmd("data modify storage space_editor:runtime pairCandidate set from storage space_editor:document regions[{id:"+sourceId+"}]");
+        for(String key:new String[]{"pairId","partnerId","spaceLinkGroupId","legacyPairId"})cmd("data remove storage space_editor:runtime pairCandidate."+key);
+        int width=region(sourceId).getIntOr("x2m",0)-region(sourceId).getIntOr("x1m",0);
+        cmd("data modify storage space_editor:runtime pairCandidate.x1m set value "+x);
+        cmd("data modify storage space_editor:runtime pairCandidate.x2m set value "+(x+width));
+        measured("function space_editor:space_group/add {source:"+sourceId+"}");
+        check(region(id).contains("spaceLinkGroupId"),"new member committed");return id;
+    }
+    static void crouch(boolean value){player.setShiftKeyDown(value);player.setPose(value?net.minecraft.world.entity.Pose.CROUCHING:net.minecraft.world.entity.Pose.STANDING);}
+    static void groupTests(){
+        cmd("data modify storage space_editor:document regions set value []");
+        cmd("data modify storage space_editor:document regionPairs set value []");
+        cmd("data modify storage space_editor:document spaceLinkGroups set value []");
+        cmd("data modify storage space_editor:document masks set value []");
+        cmd("data modify storage space_editor:document actions set value []");
+        int legacy=pair("space_link"),legacyB=region(legacy).getIntOr("partnerId",0);
+        // Preserve fractional poses and all unrelated metadata through migration.
+        cmd("data modify storage space_editor:document regions[{id:"+legacy+"}].roomId set value \"same_room\"");
+        cmd("data modify storage space_editor:document regions[{id:"+legacyB+"}].roomId set value \"same_room\"");
+        cmd("data modify storage space_editor:runtime frame set from storage space_editor:document regions[{id:"+legacy+"}]");
+        cmd("data modify storage space_editor:runtime frame.rotationY set value 90");cmd("data modify storage space_editor:runtime frame.flipY set value 1b");
+        cmd("function space_editor:pair/pose_bounds");
+        cmd("data modify storage space_editor:document regions[{id:"+legacy+"}] set from storage space_editor:runtime frame");
+        cmd("data modify storage space_editor:document regions[{id:"+legacyB+"}].dimension set value \"minecraft:the_nether\"");
+        var oldA=region(legacy).copy();var oldB=region(legacyB).copy();var oldActions=document().getListOrEmpty("actions").copy();
+        cmd("function space_editor:load");
+        int gid=region(legacy).getIntOr("spaceLinkGroupId",0);
+        check(gid>0 && group(gid).getListOrEmpty("members").size()==2,"old pair migrated to two member group");
+        for(var old:new CompoundTag[]{oldA,oldB}){
+            var actual=region(old.getIntOr("id",0));
+            for(String key:new String[]{"id","dimension","roomId","x1m","x2m","y1m","y2m","z1m","z2m","rotationY","flipY"})check(actual.get(key).equals(old.get(key)),"migration preserves "+key);
+            check(!actual.contains("pairId") && !actual.contains("partnerId"),"pair membership removed");
+        }
+        for(int i=0;i<oldActions.size();i++)check(document().getListOrEmpty("actions").get(i).equals(oldActions.get(i)),"old Action unchanged");
+        var migrated=document().copy();cmd("function space_editor:load");check(document().equals(migrated),"migration is idempotent");
+        // Broken legacy reference is warned, never destructively repaired.
+        cmd("data modify storage space_editor:document regionPairs append value {id:990001,kind:\"space_link\",a:990002,b:990003}");
+        var broken=document().copy();cmd("function space_editor:load");check(document().equals(broken),"invalid migration preserves entire Document");
+        check(!runtime().getListOrEmpty("spaceLinkWarnings").isEmpty(),"invalid migration warning");
+        cmd("data remove storage space_editor:document regionPairs[{id:990001}]");
+        // A stale unmarked pair that points at new membership cannot override it.
+        cmd("data remove storage space_editor:document regionPairs[0].spaceLinkGroupId");
+        var mixed=document().copy();cmd("function space_editor:space_group/migrate");check(document().equals(mixed),"new format wins over conflicting old record");
+        cmd("data modify storage space_editor:document regionPairs[0].spaceLinkGroupId set value "+gid);
+        int third=groupAdd(legacy,40000),fourth=groupAdd(legacy,60000);
+        check(group(gid).getListOrEmpty("members").size()==4,"three and four member append");
+        for(int id:new int[]{legacy,legacyB,third}){select(id,"mask",0);pcmd("function space_editor:mask/create_selected");}
+        check(document().getListOrEmpty("masks").size()==3,"group members have independent Masks");
+        var savedMasks=document().getListOrEmpty("masks").copy();
+        int independent=plain(),independentB=groupAdd(independent,-20000);
+        check(region(independent).getIntOr("spaceLinkGroupId",0)!=gid,"independent new two member group");
+        cmd("data modify storage space_editor:runtime pairCandidate set from storage space_editor:document regions[{id:"+independentB+"}]");
+        var before=document().copy();cmd("function space_editor:space_group/add {source:"+legacy+"}");check(document().equals(before),"foreign membership cannot be silently merged");
+        cmd("data modify storage space_editor:runtime pairCandidate set from storage space_editor:document regions[{id:"+legacy+"}]");
+        for(String key:new String[]{"pairId","partnerId","spaceLinkGroupId","legacyPairId"})cmd("data remove storage space_editor:runtime pairCandidate."+key);
+        var validCandidate=runtime().getCompoundOrEmpty("pairCandidate").copy();
+        for(String invalid:new String[]{"dimension set value \"test:unknown\"","x2m set value 500000001","x2m set value -1000","rotationY set value 45","flipY set value 2b"}){
+            cmd("data modify storage space_editor:runtime pairCandidate set value "+validCandidate);
+            cmd("data modify storage space_editor:runtime pairCandidate."+invalid);
+            before=document().copy();cmd("function space_editor:space_group/add {source:"+legacy+"}");
+            check(document().equals(before),"invalid candidate does not partially create group or IDs: "+invalid);
+        }
+        // All 8x8 source/target poses, with a third differently posed member.
+        // Independent normal-vector oracle checks the moved AND fixed faces.
+        pcmd("function space_editor:play");
+        for(int ar=0;ar<4;ar++)for(int af=0;af<2;af++)for(int br=0;br<4;br++)for(int bf=0;bf<2;bf++){
+            pose(legacy,ar*90,af);pose(legacyB,br*90,bf);pose(third,((br+1)%4)*90,1-bf);
+            for(int face=0;face<6;face++){
+                var originals=new CompoundTag[]{region(legacy).copy(),region(legacyB).copy(),region(third).copy(),region(fourth).copy()};
+                select(legacy,"resize_face",face);measured("function space_editor:region/resize_face");
+                int[] normal={0,0,0};normal[face/2]=face%2==0?-1:1;
+                for(var old:originals){
+                    int[] mapped=turn(turn(normal,-ar,af==1),old.getIntOr("rotationY",0)/90,old.getBooleanOr("flipY",false));
+                    var now=region(old.getIntOr("id",0));
+                    for(int axis=0;axis<3;axis++)for(int edge=1;edge<=2;edge++){
+                        String key="xyz".charAt(axis)+""+edge+"m";
+                        int delta=mapped[axis]<0 && edge==1?-100:mapped[axis]>0 && edge==2?100:0;
+                        check(now.getIntOr(key,0)==old.getIntOr(key,0)+delta,"group local face and fixed opposite face");
+                    }
+                    check(java.util.Arrays.equals(now.getIntArray("localSize").orElseThrow(),group(gid).getIntArray("localSize").orElseThrow()),"shared localSize");
+                }
+                crouch(true);select(legacy,"resize_face",face);pcmd("function space_editor:region/resize_face");crouch(false);
+                for(var old:originals)check(region(old.getIntOr("id",0)).equals(old),"group grow shrink exact inverse");
+            }
+        }
+        var all=regions().copy();select(third,"move",1);pcmd("function space_editor:region/move");
+        for(var v:all){var old=(CompoundTag)v;if(old.getIntOr("id",0)!=third)check(region(old.getIntOr("id",0)).equals(old),"move only selected group member");}
+        all=regions().copy();pose(third,270,1);
+        for(var v:all){var old=(CompoundTag)v;if(old.getIntOr("id",0)!=third)check(region(old.getIntOr("id",0)).equals(old),"pose only selected member");}
+        check(document().getListOrEmpty("masks").equals(savedMasks),"group move/pose/resize retain Mask definitions and settings");
+        select(third,"mask",0);cmd("data modify storage space_editor:runtime currentMask set from storage space_editor:document masks[{regionId:"+third+"}]");cmd("function space_editor:mask/prepare");
+        near(runtime().getCompoundOrEmpty("maskRender").getDoubleOr("x1",999),region(third).getDoubleOr("x1",999),"Mask render follows moved member bounds");
+        all=regions().copy();select(legacy,"resize_all",0);pcmd("function space_editor:region/resize_all");
+        crouch(true);select(legacy,"resize_all",0);pcmd("function space_editor:region/resize_all");crouch(false);check(regions().equals(all),"whole group size round trip");
+        // Failure at final member: all preceding staged edits must be discarded.
+        pose(fourth,0,0);
+        cmd("data modify storage space_editor:document regions[{id:"+fourth+"}].y1m set value 316000");
+        cmd("data modify storage space_editor:document regions[{id:"+fourth+"}].y2m set value 320000");
+        pose(legacy,0,0);before=document().copy();select(legacy,"resize_face",3);pcmd("function space_editor:region/resize_face");
+        check(document().equals(before),"late member height failure rolls back all data and Actions");
+        cmd("data modify storage space_editor:document regions[{id:"+fourth+"}].y1m set value 80000");
+        cmd("data modify storage space_editor:document regions[{id:"+fourth+"}].y2m set value 84000");
+        // Composition and inverses across ALL three endpoint poses, fractional negative point.
+        for(int a=0;a<8;a++)for(int b=0;b<8;b++)for(int c=0;c<8;c++){
+            String fa=frame((a/2)*90,a%2,0),fb=frame((b/2)*90,b%2,20000),fc=frame((c/2)*90,c%2,40000);
+            cmd("data modify storage space_editor:runtime map set value {source:"+fa+",target:"+fc+",point:[-0.5005d,80.1235d,0.1005d],vector:[0.1d,-0.2d,0.3d],yaw:-0.1f,pitch:30.123f}");cmd("function space_editor:mapping/position");
+            var direct=runtime().getCompoundOrEmpty("map").getCompoundOrEmpty("result").copy();
+            cmd("data modify storage space_editor:runtime map.target set value "+fb);cmd("function space_editor:mapping/position");
+            for(String key:new String[]{"point","vector","yaw","pitch"})cmd("data modify storage space_editor:runtime map."+key+" set from storage space_editor:runtime map.result."+key);
+            cmd("data modify storage space_editor:runtime map.source set value "+fb);cmd("data modify storage space_editor:runtime map.target set value "+fc);cmd("function space_editor:mapping/position");
+            check(runtime().getCompoundOrEmpty("map").getCompoundOrEmpty("result").equals(direct),"A-B-C equals A-C, position/vector/look");
+        }
+        // Runtime uses only containing sources, then their group's destinations.
+        player.setPos(.5,80.5,1.5);pose(legacy,0,0);pose(legacyB,90,1);
+        cmd("data modify storage space_editor:document regions[{id:"+third+"}].dimension set value \"minecraft:the_nether\"");
+        snapshot();cmd("data modify storage space_editor:runtime spaceLinkContacts set value []");
+        int cost=measured("function space_editor:link/player");
+        var contacts=runtime().getListOrEmpty("spaceLinkContacts");
+        // Independent group's source overlaps A: each real source has its own routes.
+        int count=0;var paths=new java.util.HashSet<String>();
+        for(var v:contacts){var contact=(CompoundTag)v;if(contact.getIntOr("spaceLinkGroupId",0)==gid){count++;check(contact.getIntOr("sourceRegionId",0)!=contact.getIntOr("targetRegionId",0),"no self route");paths.add(contact.getCompoundOrEmpty("projectionPathId").toString());check(contact.contains("uuid") && contact.contains("instanceId"),"identity contract");}}
+        check(count==3 && paths.size()==3,"three targets including same RoomID remain distinct");
+        var originalB=region(legacyB).copy();var overlap=region(legacy).copy();
+        overlap.putInt("id",legacyB);overlap.putString("idText",originalB.getStringOr("idText",""));
+        cmd("data modify storage space_editor:document regions[{id:"+legacyB+"}] set value "+overlap);
+        snapshot();cmd("data modify storage space_editor:runtime spaceLinkContacts set value []");pcmd("function space_editor:link/player");
+        int overlappingRoutes=0;paths.clear();for(var v:runtime().getListOrEmpty("spaceLinkContacts")){var c=(CompoundTag)v;if(c.getIntOr("spaceLinkGroupId",0)==gid){overlappingRoutes++;paths.add(c.getCompoundOrEmpty("projectionPathId").toString());}}
+        check(overlappingRoutes==6 && paths.size()==6,"coincident Regions preserve source and target path identity");
+        pcmd("function space_editor:start");pcmd("function space_editor:space_group/select_id {id:"+legacyB+"}");
+        check(runtime().getCompoundOrEmpty("pairSession").getIntOr("selected",0)==legacyB,"overlapping Region selected explicitly by stable ID");
+        pcmd("function space_editor:play");
+        cmd("data modify storage space_editor:document regions[{id:"+legacyB+"}] set value "+originalB);
+        cmd("data modify storage space_editor:runtime map set value {point:[0.5d,80.5d,1.5d],yaw:15f,pitch:25f}");
+        cmd("function space_editor:space_group/map {groupId:"+gid+",source:"+legacy+",target:"+third+"}");
+        check(runtime().getCompoundOrEmpty("map").getCompoundOrEmpty("result").getStringOr("dimension","").equals("minecraft:the_nether"),"group API resolves cross-dimension target");
+        cmd("data modify storage space_editor:document spaceLinkGroups[{id:"+gid+"}].members append value 999999");
+        cmd("data modify storage space_editor:runtime spaceLinkContacts set value []");pcmd("function space_editor:link/player");
+        check(!runtime().getListOrEmpty("spaceLinkRuntimeWarnings").isEmpty(),"invalid runtime member reported and skipped");
+        cmd("data remove storage space_editor:document spaceLinkGroups[{id:"+gid+"}].members[-1]");
+        // Delete preserves unrelated masks; final survivor becomes reusable plain Region.
+        var survivor=region(legacy).copy();var unrelated=region(independent).copy();
+        for(int id:new int[]{legacyB,fourth}){select(id,"delete",0);pcmd("function space_editor:region/apply_hit");}
+        check(group(gid).getListOrEmpty("members").size()==2 && region(legacy).equals(survivor),"individual deletion keeps other members");
+        check(document().getListOrEmpty("masks").size()==2,"only deleted member Mask removed");
+        select(third,"delete",0);pcmd("function space_editor:region/apply_hit");
+        check(!region(legacy).contains("spaceLinkGroupId") && !region(legacy).contains("kind"),"one survivor is plain unconnected Region");
+        check(document().getListOrEmpty("masks").size()==1 && document().getListOrEmpty("masks").getCompoundOrEmpty(0).equals(savedMasks.getCompoundOrEmpty(0)),"survivor Mask retained unchanged");
+        check(region(independent).equals(unrelated),"other group untouched");
+        groupAdd(legacy,40000);check(region(legacy).contains("spaceLinkGroupId"),"survivor reusable as group source");
+        var saved=document().copy();cmd("function space_editor:load");check(document().equals(saved),"new groups survive reload unchanged");
+        groupUiTests(legacy);
+        groupLoadTests();
+        System.out.println("SPACE_LINK_GROUP_PASS: migration/idempotence/conflict, 2/3/4 members, 384 local faces across four members, 512 composition triples, atomic rollback, individual deletion/dissolution, reload, same-room routes, dimension; contact_commands="+cost);
+    }
+    static void groupLoadTests(){
+        cmd("data modify storage space_editor:document regions set value []");cmd("data modify storage space_editor:document regionPairs set value []");
+        cmd("data modify storage space_editor:document spaceLinkGroups set value []");cmd("data modify storage space_editor:document masks set value []");
+        int a=plain();player.setPos(.5,80.5,1.5);pcmd("function space_editor:play");
+        int maxAdd=0,maxContact=0;
+        for(int n=2;n<=64;n++){
+            groupAdd(a,100000+n*10000);
+            if(n==4 || n==8 || n==16 || n==32 || n==64){
+                snapshot();cmd("data modify storage space_editor:runtime spaceLinkContacts set value []");
+                int used=measured("function space_editor:link/player");maxContact=Math.max(maxContact,used);
+                check(runtime().getListOrEmpty("spaceLinkContacts").size()==n-1,"load test all targets present");
+                System.out.println("SPACE_LINK_GROUP_LOAD: members="+n+" contact_commands="+used);
+            }
+        }
+        select(a,"resize_face",1);int editCost=measured("function space_editor:region/resize_face");
+        int gid=region(a).getIntOr("spaceLinkGroupId",0);
+        for(var v:regions())check(java.util.Arrays.equals(((CompoundTag)v).getIntArray("localSize").orElseThrow(),group(gid).getIntArray("localSize").orElseThrow()),"64 member transaction complete");
+        var other=namedPlayer("group-load-two");other.setNoGravity(true);other.setPos(1,81,2);
+        var list=helper.getLevel().getServer().getPlayerList().getPlayers();boolean add=!list.contains(player);if(add)list.add(player);
+        try{int used=measured("function space_editor:teleport/tick");check(runtime().getListOrEmpty("spaceLinkContacts").size()==126,"two players at group capacity");System.out.println("SPACE_LINK_GROUP_LOAD: members=64 players=2 tick_commands="+used+" edit_commands="+editCost);}
+        finally{if(add)list.remove(player);helper.getLevel().getServer().getPlayerList().remove(other);}
+        groupAdd(a,800000);check(group(gid).getListOrEmpty("members").size()==65,"group is not limited to 64 members");
+    }
+    static void groupUiTests(int a){
+        pcmd("function space_editor:start");
+        pcmd("item replace entity @s weapon.mainhand with minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"space_link\"}}]");
+        pcmd("function space_editor:pair/held_space_link");select(a,"pair_select",0);pcmd("function space_editor:pair/select");
+        int gid=region(a).getIntOr("spaceLinkGroupId",0),count=group(gid).getListOrEmpty("members").size();
+        check(runtime().contains("pairPending"),"existing group starts add session");
+        for(int i=0;i<2;i++){
+            pcmd("function space_editor:pair/confirm");
+            check(group(gid).getListOrEmpty("members").size()==++count && runtime().contains("pairPending"),"consecutive UI placement keeps pending session");
+        }
+        var saved=document().copy();pcmd("item replace entity @s weapon.mainhand with minecraft:air");cmd("function space_editor:tick");
+        check(!runtime().contains("pairPending") && document().equals(saved),"switching tools discards only pending preview");
+        pcmd("function space_editor:pair/held_space_link");crouch(true);select(a,"pair_select",0);pcmd("function space_editor:pair/select");
+        check(!runtime().contains("pairPending") && runtime().getCompoundOrEmpty("pairSession").getStringOr("mode","").equals("pose"),"first Shift selection explicitly targets existing Region pose");
+        crouch(false);
+        var other=namedPlayer("group-editor-other");var originalPlayer=player;var session=runtime().getCompoundOrEmpty("pairSession").copy();
+        try{player=other;pcmd("function space_editor:start");pcmd("function space_editor:pair/held_space_link");check(runtime().getCompoundOrEmpty("pairSession").equals(session),"second editor cannot overwrite owner session");}
+        finally{player=originalPlayer;helper.getLevel().getServer().getPlayerList().remove(other);}
+        cmd("function space_editor:load");check(!runtime().contains("pairPending") && !runtime().contains("pairSession"),"reload clears transient editor state");
+        pcmd("function space_editor:pair/held_space_link");select(a,"pair_select",0);pcmd("function space_editor:pair/select");
+        pcmd("tag @s remove space_editor.editing");cmd("function space_editor:space_group/session_tick");
+        check(!runtime().contains("pairPending") && !runtime().contains("pairSession"),"missing editor owner releases transient session");
+        pcmd("function space_editor:play");
     }
     static int editMaxCommands;
     static int measured(String command){
@@ -447,6 +667,29 @@ public class SpaceEditorStage5GameTest {
         check(helper.getLevel().getBlockState(new net.minecraft.core.BlockPos(0,83,0)).isAir() && regions().equals(saved),"special collision deletion precedes Region selection");
         System.out.println("SPACE_EDITOR_REGION_EDIT_PASS: 33 Regions, 24 far moves, near/inside/Shift, fractional/thin/diagonal/vertical/overlap/miss, resize, Mask, UUID preservation, resync; max_commands="+editMaxCommands+" limit=65536");
     }
+    static void fillOffhandTests(){
+        String[] items={"minecraft:gold_block","minecraft:air","minecraft:water_bucket","minecraft:lava_bucket","minecraft:bucket"};
+        String[] blocks={"minecraft:gold_block","minecraft:air","minecraft:water","minecraft:lava","minecraft:stone"};
+        for(int i=0;i<items.length;i++){
+            int id=9000+i;box(id,8000,80000,8000,9000,81000,9000);
+            cmd("setblock 8 80 8 minecraft:stone");
+            cmd("data modify storage space_editor:runtime hover set value {dimension:\"minecraft:overworld\",pos:[I;8,80,8],x:8,y:80,z:8}");
+            pcmd("item replace entity @s weapon.offhand with "+items[i]);
+            int before=regions().size();var saved=region(id).copy();
+            pcmd("function space_editor:input/fill");
+            var expected=net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(Identifier.parse(blocks[i]));
+            var actual=helper.getLevel().getBlockState(new net.minecraft.core.BlockPos(8,80,8));
+            check(actual.is(expected),"offhand fill result for "+items[i]);
+            boolean supported=i<4;
+            check(regions().size()==before-(supported?1:0),"only successful fills remove their Region");
+            if(!supported)check(region(id).equals(saved),"unsupported bucket preserves saved Region");
+            if(i==2 || i==3)check(actual.getFluidState().isSource(),"bucket fills place fluid sources");
+            if(i==1)check(runtime().getStringOr("fillBlock","").equals("minecraft:air"),"empty offhand clears preceding material");
+        }
+        pcmd("item replace entity @s weapon.offhand with minecraft:air");
+        cmd("setblock 8 80 8 minecraft:air");
+        System.out.println("SPACE_EDITOR_FILL_OFFHAND_PASS: empty=air, water/lava buckets=source fluids, ordinary block unchanged, unsupported bucket preserves Region");
+    }
     static void test(GameTestHelper h){
         helper=h;source=h.getLevel().getServer().createCommandSourceStack();
         cmd("function space_editor:load");cmd("forceload add -48 -48 80 48");cmd("execute in minecraft:the_nether run forceload add 16 -16 32 16");
@@ -459,7 +702,7 @@ public class SpaceEditorStage5GameTest {
                 if(!runtime().getBooleanOr("testLoaded",false)){if(++ticks[0]>100)throw new AssertionError("test chunks not loaded");return;}
                 cmd("execute in minecraft:the_nether store success storage space_editor:runtime netherLoaded byte 1 if loaded 22 80 1");
                 if(!runtime().getBooleanOr("netherLoaded",false)){if(++ticks[0]>2000){for(var level:h.getLevel().getServer().getAllLevels())System.out.println("TEST_LEVEL "+level.dimension());throw new AssertionError("Nether test chunks not loaded");}return;}
-                regionEditTests();mappingTests();pairTests();uiTests();teleportTests();
+                regionEditTests();fillOffhandTests();mappingTests();pairTests();uiTests();teleportTests();groupTests();
                 System.out.println("SPACE_EDITOR_STAGE5_RUNTIME_PASS: 64 mappings, no drift, 384 face edits, rollback, pose, placement, reload, group warnings, TP/re-entry, safe/unloaded exits, two players, pre-TP contacts, dimension transfer");
                 done[0]=true;h.succeed();
             }catch(Throwable ex){done[0]=true;ex.printStackTrace();h.fail(ex.getMessage());}

@@ -1,3 +1,4 @@
+data modify storage space_editor:runtime spaceLinkRuntimeWarnings set value []
 scoreboard players add @a se.tp_lock 0
 scoreboard players add @a se.tp_cd 0
 scoreboard players add @a se.instance 0

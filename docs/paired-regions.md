@@ -1,5 +1,10 @@
 # Paired Region implementation
 
+> 2026-10-29: SpaceLinkの現行仕様・検証結果は
+> [SpaceLink groups](space-link-groups.md) を参照。
+> 以下の「SpaceLinkも2個」「片側削除で両側削除」は旧仕様。
+> Teleportのペアと共通座標変換に関する契約は引き続き有効。
+
 Base: `0f54e46` (`codex/tool-wand-visuals`). Live assets and the verified world
 junction remain in place. Stage 05 calls 04 -> 03 -> 02 -> 01 -> resources.
 

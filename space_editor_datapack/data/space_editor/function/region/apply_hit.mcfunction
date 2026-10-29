@@ -1,3 +1,4 @@
+execute if data storage space_editor:runtime {activeTool:"delete"} if data storage space_editor:runtime hit.spaceLinkGroupId run return run function space_editor:space_group/delete with storage space_editor:runtime hit
 execute if data storage space_editor:runtime {activeTool:"pair_select"} run return run function space_editor:pair/select
 data modify storage space_editor:document selectedId set from storage space_editor:runtime hit.idText
 execute if data storage space_editor:runtime {activeTool:"copy"} run return run function space_editor:copy/start

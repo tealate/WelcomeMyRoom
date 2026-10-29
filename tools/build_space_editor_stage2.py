@@ -159,8 +159,9 @@ def main() -> None:
         message("選択予定位置を含むRegionがありません。", "red"),
     ])
     fn("fill/offhand", [
-        "data remove storage space_editor:runtime fillBlock",
-        "data modify storage space_editor:runtime fillBlock set from entity @s equipment.offhand.id",
+        'data modify storage space_editor:runtime fillBlock set value "minecraft:air"',
+        "execute if items entity @s weapon.offhand * run data modify storage space_editor:runtime fillBlock set from entity @s equipment.offhand.id",
+        *[f'execute if items entity @s weapon.offhand minecraft:{fluid}_bucket run data modify storage space_editor:runtime fillBlock set value "minecraft:{fluid}"' for fluid in ("water", "lava")],
         "function space_editor:fill/apply",
     ])
     fn("fill/apply", [

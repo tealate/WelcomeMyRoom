@@ -64,6 +64,10 @@ Template の再発行は `/function space_editor:template/reissue {id:1}`、Past
 `/function space_editor:paste/cancel` です。Job 操作は `/function space_editor:job/pause`、
 `resume`、`retry`、`cancel` を使います。
 
+「透過ペースト棒」はコピー元のAir 3種を無視して配置先を保持します。通常ペースト棒と同じ
+Template紙・プレビュー・回転・FlipY操作を使い、水・溶岩の状態も複製します。
+取得方法、strictによる液体更新抑制、検証内容は [透過ペーストの仕様](docs/masked-paste.md) を参照してください。
+
 ### 03: Paste transform
 
 Paste の4方向回転、FlipY、block state 変換、特殊な fence/wall 表示を追加します。未対応ブロックは
