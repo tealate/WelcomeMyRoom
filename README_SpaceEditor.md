@@ -1,12 +1,12 @@
-# Space Editor — 第5段階（ペアRegion編集・TP）
+# Space Editor — 第5段階（Region編集・TP・SpaceLinkGroup）
 
 Minecraft Java Edition 26.1 用のライブ編集データパックです。現行 runtime の namespace は
 `space_editor:`、保存先は `storage space_editor:document` です。旧 `editor:` runtime と
 `storage editor:data` は使用しません。
 
-現在ロードされる実装は、01〜04に共通ペアRegion編集と05のTPを追加した版です。
-TeleportとSpaceLinkは独立したペア、ProxyExistenceは単独Regionです。
-06の模倣生成・同期は未実装です。Maskは従来どおり独立Objectとして動作します。
+現在ロードされる実装は01〜05のSpaceLinkGroup対応版です。
+06-1のMannequin単体技術検証は [操作・検証レポート](docs/stage06-1-mannequin.md) を参照してください。
+SpaceLinkとの正式接続はまだありません。Maskは従来どおり独立Objectとして動作します。
 
 ## ライブ環境
 
