@@ -91,6 +91,19 @@ the foot point against half-open AABB boundaries. It does not cast an editor ray
 
 ## Pair APIs and transactions
 
+### 編集棒と箱の色
+
+TP接続棒は水色の門、SpaceLink接続棒はエメラルド色の連結形、Proxy存在範囲棒は黄色の立体枠です。
+対応するRegionの箱も棒と同じテクスチャを使った12辺の枠で表示します。
+TPは水色、SpaceLinkは緑、Proxy存在範囲は黄色、通常Regionは従来のシアンです。
+配置プレビュー・確定後・選択解除・編集再描画でも種類の色を保持します。
+前／上の方向矢印は従来どおり緑／黄色です。
+
+反映は `/reload` と `F3+T`。古い棒のモデル指定がない場合は
+`/function space_editor:start` で再支給します。リソースパックはtestpackを優先してください。
+箱は既存selection用キャリアのfacing別モデルを使用し、Regionの保存座標・回転には影響しません。
+自動試験は配置／確定／選択と解除のブロック状態を検証し、実際の描画はクライアントで確認します。
+
 - `pair/create {source:ID,kind:"teleport"}` or `kind:"space_link"` uses the
   prepared `pairCandidate` Region. Both records validate and local sizes must
   match before mutation. `#pair_ok se.v` is 1 only after a successful commit.

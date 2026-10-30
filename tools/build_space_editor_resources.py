@@ -96,7 +96,12 @@ def _read_manifest() -> dict[str, dict[str, str | None]]:
 
 
 def _blockstate_bytes(model: str) -> bytes:
-    return (json.dumps({"variants": {"": {"model": model}}}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    variants = {"": {"model": model}}
+    if model == "editor:block/selection":
+        variants = {f"facing={facing}": {"model": target} for facing, target in (
+            ("north", model), ("east", "editor:block/frame_teleport"),
+            ("south", "editor:block/frame_space_link"), ("west", "editor:block/frame_proxy_existence"))}
+    return (json.dumps({"variants": variants}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
 def _validate_destinations(root: Path, desired: dict[Path, str], *, allow_original: bool) -> None:
@@ -193,6 +198,22 @@ def _tool_model(name: str, accent: str) -> dict:
     elif name == "mask":
         elements += [_tool_box([3, 9, 7], [13, 11, 9]), _tool_box([3, 14, 7], [13, 16, 9]),
                      _tool_box([3, 11, 7], [5, 14, 9]), _tool_box([11, 11, 7], [13, 14, 9])]
+    elif name == "teleport":
+        elements += [_tool_box([3, 8, 6], [5, 16, 10]), _tool_box([11, 8, 6], [13, 16, 10]),
+                     _tool_box([5, 14, 6], [11, 16, 10]), _tool_box([6, 10, 7], [10, 12, 9], "#detail")]
+    elif name == "space_link":
+        for x, y, z in ((2, 9, 6), (7, 11, 8)):
+            elements += [_tool_box([x,y,z], [x+2,y+5,z+2]), _tool_box([x+4,y,z], [x+6,y+5,z+2]),
+                         _tool_box([x+2,y,z], [x+4,y+1,z+2]), _tool_box([x+2,y+4,z], [x+4,y+5,z+2])]
+    elif name == "proxy_existence":
+        for x in (3, 11):
+            for z in (3, 11):
+                elements.append(_tool_box([x,9,z], [x+2,16,z+2]))
+        for y in (9, 14):
+            for z in (3, 11):
+                elements.append(_tool_box([3,y,z], [13,y+2,z+2]))
+            for x in (3, 11):
+                elements.append(_tool_box([x,y,3], [x+2,y+2,13]))
     return {
         "parent": "minecraft:item/handheld",
         "textures": {
@@ -206,6 +227,19 @@ def _tool_model(name: str, accent: str) -> dict:
 
 
 def build_tool_resources() -> None:
+    # Code-native wireframes use the exact same vanilla textures as the wands.
+    for kind in ("teleport", "space_link", "proxy_existence"):
+        edges = []
+        for axis in range(3):
+            others = [i for i in range(3) if i != axis]
+            for a in (0, 15.6):
+                for b in (0, 15.6):
+                    start = [0, 0, 0]; end = [16, 16, 16]
+                    for i, value in zip(others, (a, b)):
+                        start[i] = value; end[i] = value + 0.4
+                    edge = _tool_box(start, end); edge["shade"] = False; edges.append(edge)
+        write_json(RP / f"assets/editor/models/block/frame_{kind}.json", {
+            "textures": {"accent": TOOL_MODELS[kind], "particle": TOOL_MODELS[kind]}, "elements": edges})
     for name, accent in TOOL_MODELS.items():
         write_json(RP / f"assets/editor/models/item/tool_{name}.json", _tool_model(name, accent))
         write_json(RP / f"assets/editor/items/tool_{name}.json", {
@@ -311,7 +345,7 @@ def build_resources() -> None:
     _validate_destinations(RP, desired, allow_original=False)
     _remove_stale(RP, {path.as_posix() for path in desired}, restore_original=False)
     for relative, model in desired.items():
-        write_json(RP / relative, {"variants": {"": {"model": model}}})
+        write_json(RP / relative, json.loads(_blockstate_bytes(model)))
 
 
 def sync_live_resources() -> None:
@@ -342,6 +376,7 @@ def sync_live_resources() -> None:
     files += [RP / "assets/editor/models/block/selection_candidate.json"]
     files += [RP / f"assets/editor/models/item/tool_{name}.json" for name in TOOL_MODELS]
     files += [RP / f"assets/editor/items/tool_{name}.json" for name in TOOL_MODELS]
+    files += [RP / f"assets/editor/models/block/frame_{kind}.json" for kind in ("teleport", "space_link", "proxy_existence")]
     files += [RP / f"assets/editor/{folder}/direction_{name}.json"
               for folder in ("models/item", "items") for name in ("front", "up")]
     for name in ("selection", "guide"):

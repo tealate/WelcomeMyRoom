@@ -187,6 +187,7 @@ public class SpaceEditorStage5GameTest {
         java.util.UUID preview=null;
         while(entity.hasNext()){var e=entity.next();if(e.entityTags().contains("space_editor.pair_pending_box"))preview=e.getUUID();}
         check(preview!=null,"placement preview spawned");
+        frameColor("tag=space_editor.pair_pending_box", "east");
         int arrows=0;for(var e:helper.getLevel().getAllEntities())if(e.entityTags().contains("space_editor.pending_arrow_front") || e.entityTags().contains("space_editor.pending_arrow_up"))arrows++;
         check(arrows==2,"both 3D orientation arrows spawned");
         pcmd("execute as @e[tag=space_editor.pending_arrow_front,limit=1] run data modify storage space_editor:runtime testArrow set from entity @s transformation.left_rotation");
@@ -200,8 +201,25 @@ public class SpaceEditorStage5GameTest {
         check(region(a).contains("pairId") && !runtime().contains("pairPending"),"second click commits pair and clears preview");
         int b=region(a).getIntOr("partnerId",0);
         check(region(b).getIntOr("rotationY",0)==90 && region(b).getBooleanOr("flipY",false),"preview pose persisted");
+        frameColor("tag=space_editor.region,scores={se.id="+a+"}", "east");
+        frameColor("tag=space_editor.region,scores={se.id="+b+"}", "east");
+        cmd("function space_editor:preview/highlight {id:"+a+",dimension:\"minecraft:overworld\"}");
+        frameColor("tag=space_editor.region,scores={se.id="+a+"}", "east");
+        cmd("function space_editor:preview/clear_highlight {id:"+a+",dimension:\"minecraft:overworld\"}");
+        frameColor("tag=space_editor.region,scores={se.id="+a+"}", "east");
+        int link=pair("space_link");
+        cmd("function space_editor:space_group/load");cmd("function space_editor:preview/resync");
+        frameColor("tag=space_editor.region,scores={se.id="+link+"}", "south");
+        int existence=plain();select(existence,"pair_select",0);pcmd("function space_editor:pair/mark_existence");
+        frameColor("tag=space_editor.region,scores={se.id="+existence+"}", "west");
         pcmd("function space_editor:play");
         for(var e:helper.getLevel().getAllEntities())check(!e.entityTags().contains("space_editor.preview"),"play hides every edit indicator");
+    }
+    static void frameColor(String selector,String facing){
+        cmd("data remove storage space_editor:runtime testFrameColor");
+        cmd("data modify storage space_editor:runtime testFrameColor set from entity @e[type=minecraft:block_display,"+selector+",limit=1] block_state");
+        var block=runtime().getCompoundOrEmpty("testFrameColor");
+        check(block.getStringOr("Name","").equals("minecraft:magenta_glazed_terracotta")&&block.getCompoundOrEmpty("Properties").getStringOr("facing","").equals(facing),"Region type color survives creation/highlight/restore: "+selector);
     }
     static void config(int regionId,int group){
         cmd("function space_editor:pair/configure {id:"+region(regionId).getIntOr("pairId",region(regionId).getIntOr("legacyPairId",0))+",groupId:"+group+",roomA:\"room_a\",roomB:\"room_b\",direction:\"both\",cooldownTicks:20}");

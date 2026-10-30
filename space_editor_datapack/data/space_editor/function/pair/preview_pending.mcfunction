@@ -6,3 +6,6 @@ $execute in $(dimension) as @e[tag=space_editor.pair_pending_box] positioned 0.0
 $execute in $(dimension) as @e[tag=space_editor.pair_pending_box] run data merge entity @s {transformation:{scale:[$(sx)f,$(sy)f,$(sz)f]}}
 function space_editor:pair/direction_points
 function space_editor:pair/pending_directions with storage space_editor:runtime frame
+$execute in $(dimension) if data storage space_editor:runtime pairPending{kind:"teleport"} as @e[type=minecraft:block_display,tag=space_editor.pair_pending_box,distance=0..] run data merge entity @s {block_state:{Name:"minecraft:magenta_glazed_terracotta",Properties:{facing:"east"}}}
+$execute in $(dimension) if data storage space_editor:runtime pairPending{kind:"space_link"} as @e[type=minecraft:block_display,tag=space_editor.pair_pending_box,distance=0..] run data merge entity @s {block_state:{Name:"minecraft:magenta_glazed_terracotta",Properties:{facing:"south"}}}
+$execute in $(dimension) if data storage space_editor:runtime pairPending{kind:"proxy_existence"} as @e[type=minecraft:block_display,tag=space_editor.pair_pending_box,distance=0..] run data merge entity @s {block_state:{Name:"minecraft:magenta_glazed_terracotta",Properties:{facing:"west"}}}

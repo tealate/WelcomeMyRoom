@@ -376,6 +376,7 @@ def generate_pair_ui() -> None:
     for kind, name, color in (("teleport", "TP接続棒", "aqua"), ("space_link", "SpaceLink接続棒", "green"),
                               ("proxy_existence", "Proxy存在範囲棒", "yellow")):
         append(F / "start.mcfunction", [
+            f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{kind}"}}}},minecraft:item_model="editor:tool_{kind}"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{kind}"}}}}]',
             f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{kind}"}}}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={{space_editor:{{tool:"{kind}"}}}},minecraft:item_model="editor:tool_{kind}",minecraft:custom_name={{text:"{name}",color:"{color}",italic:false}},minecraft:lore=[{{text:"右クリック: 対象選択 / 配置確定",italic:false}},{{text:"Shift+右クリック: 基準Yawの左右で回転・上下でFlipY",italic:false}}]]',
         ])
         insert_before(F / "tick.mcfunction", "scoreboard players set @a[scores={se.use=1..}]", [
@@ -946,6 +947,19 @@ def generate_region_edit_fix() -> None:
     fn("preview/update_partner", ['$function space_editor:preview/update_region {id:$(partnerId)}'])
 
 
+def generate_type_colors() -> None:
+    carrier = stage4.DISPLAY_BLOCKS["selection"]
+    colors = (("teleport", "east"), ("space_link", "south"), ("proxy_existence", "west"))
+    fn("preview/type_color", [
+        f'$execute in $(dimension) if data {D} regions[{{id:$(id),kind:"{kind}"}}] as @e[type=minecraft:block_display,tag=space_editor.region,scores={{se.id=$(id)}}] run data merge entity @s {{block_state:{{Name:"{carrier}",Properties:{{facing:"{facing}"}}}}}}'
+        for kind, facing in colors])
+    for name in ("preview/spawn", "pair/spawn_frame", "preview/highlight", "preview/clear_highlight"):
+        append(F / f"{name}.mcfunction", ['$function space_editor:preview/type_color {id:$(id),dimension:"$(dimension)"}'])
+    append(F / "pair/preview_pending.mcfunction", [
+        f'$execute in $(dimension) if data {R} pairPending{{kind:"{kind}"}} as @e[type=minecraft:block_display,tag=space_editor.pair_pending_box,distance=0..] run data merge entity @s {{block_state:{{Name:"{carrier}",Properties:{{facing:"{facing}"}}}}}}'
+        for kind, facing in colors])
+
+
 def main() -> None:
     stage4.main()
     generate_transform()
@@ -959,6 +973,7 @@ def main() -> None:
     build_space_editor_stage6_1.generate()
     import build_space_editor_stage6
     build_space_editor_stage6.generate(__import__(__name__))
+    generate_type_colors()
     print(f"Generated stage-5 Space Editor: {len(list(F.rglob('*.mcfunction')))} functions")
 
 
