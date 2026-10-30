@@ -1,0 +1,17 @@
+$execute if data storage space_editor:projection route{sourceId:$(targetId)} run return run function space_editor:projection/hide_production with storage space_editor:projection route
+$execute in $(dimension) positioned 0.0 0.0 0.0 positioned ~$(x) ~$(y) ~$(z) unless loaded ~ ~ ~ run return run function space_editor:projection/hide_production with storage space_editor:projection render
+$execute in $(dimension) positioned 0.0 0.0 0.0 positioned ~$(x) ~$(y) ~$(z) unless entity @a[distance=..96] run return run function space_editor:projection/hide_production with storage space_editor:projection render
+$execute in $(dimension) unless entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] if score #spawn pr.v matches 1.. run function space_editor:projection/spawn_production with storage space_editor:projection render
+$execute in $(dimension) unless entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] run return 0
+$execute in $(dimension) unless entity @e[type=minecraft:text_display,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] run function space_editor:projection/label_production with storage space_editor:projection render
+$execute in $(dimension) as @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] run function space_editor:proxy_spike/set_pose with storage space_editor:projection render
+$execute in $(dimension) if data storage space_editor:projection render{flip:1} as @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] unless data entity @s {CustomName:"Dinnerbone"} run data modify entity @s CustomName set value "Dinnerbone"
+$execute in $(dimension) if data storage space_editor:projection render{flip:0} run data remove entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] CustomName
+$execute in $(dimension) run item replace entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] armor.head from entity @s armor.head
+$execute in $(dimension) run item replace entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] armor.chest from entity @s armor.chest
+$execute in $(dimension) run item replace entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] armor.legs from entity @s armor.legs
+$execute in $(dimension) run item replace entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] armor.feet from entity @s armor.feet
+$execute in $(dimension) run item replace entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] weapon.mainhand from entity @s weapon.mainhand
+$execute in $(dimension) run item replace entity @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] weapon.offhand from entity @s weapon.offhand
+$execute in $(dimension) positioned 0.0 0.0 0.0 run tp @e[type=minecraft:mannequin,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] ~$(x) ~$(y) ~$(z) $(yaw) $(pitch)
+$execute in $(dimension) positioned 0.0 0.0 0.0 run tp @e[type=minecraft:text_display,tag=space_editor.proxy,tag=pr.production,scores={pr.id=$(id)},limit=1] ~$(x) ~$(nameY) ~$(z)

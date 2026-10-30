@@ -57,3 +57,4 @@ tellraw @a {"text": "[Space Editor] 第3段階: 水平回転 / FlipY変換を読
 tellraw @a {"text": "[Space Editor] 第4段階: Mask生成・編集・可視化を読み込みました。", "color": "aqua"}
 tellraw @a {"text": "[Space Editor] 第5段階: ペアRegion編集・TP。/function space_editor:pair/help", "color": "aqua"}
 function space_editor:proxy_spike/load
+function space_editor:projection/load

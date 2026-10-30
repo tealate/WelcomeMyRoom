@@ -1,0 +1,17 @@
+execute unless data storage space_editor:projection actorQueue[0] run return 0
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player
+execute if data storage space_editor:projection actorQueue[0] run function space_editor:projection/finish_player

@@ -1,0 +1,9 @@
+data modify storage space_editor:projection active set value []
+data modify storage space_editor:projection players set value []
+scoreboard players add #epoch pr.epoch 1
+execute in minecraft:overworld run kill @e[type=minecraft:mannequin,tag=space_editor.proxy]
+execute in minecraft:overworld run kill @e[type=minecraft:text_display,tag=space_editor.proxy]
+execute in minecraft:the_nether run kill @e[type=minecraft:mannequin,tag=space_editor.proxy]
+execute in minecraft:the_nether run kill @e[type=minecraft:text_display,tag=space_editor.proxy]
+execute in minecraft:the_end run kill @e[type=minecraft:mannequin,tag=space_editor.proxy]
+execute in minecraft:the_end run kill @e[type=minecraft:text_display,tag=space_editor.proxy]

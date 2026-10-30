@@ -1,0 +1,1 @@
+{"criteria": {"hit": {"trigger": "minecraft:player_hurt_entity", "conditions": {"damage": {"type": {"direct_entity": {"type": "minecraft:player"}}}}}}, "rewards": {"function": "space_editor:projection/attack"}}

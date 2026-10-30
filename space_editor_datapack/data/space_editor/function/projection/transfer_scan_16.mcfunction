@@ -1,0 +1,17 @@
+execute unless data storage space_editor:projection transfers[0] run return 0
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next
+execute if data storage space_editor:projection transfers[0] run function space_editor:projection/transfer_next

@@ -957,6 +957,8 @@ def main() -> None:
     build_space_link_groups.generate(__import__(__name__))
     import build_space_editor_stage6_1
     build_space_editor_stage6_1.generate()
+    import build_space_editor_stage6
+    build_space_editor_stage6.generate(__import__(__name__))
     print(f"Generated stage-5 Space Editor: {len(list(F.rglob('*.mcfunction')))} functions")
 
 
