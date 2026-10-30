@@ -1,11 +1,21 @@
-function space_editor:proxy_spike/ensure_owner
-function space_editor:proxy_spike/delete_selected
+execute unless entity @s[type=minecraft:player] run return 0
+execute at @s unless loaded ~ ~ ~3 run return run tellraw @s {text:'[06-1] 生成先チャンクが未ロードです',color:'yellow'}
+function space_editor:proxy_spike/stop
+scoreboard players add #next sp.owner 1
+scoreboard players operation @s sp.owner = #next sp.owner
+scoreboard players add @s sp.leave 0
+scoreboard players operation @s sp.seen = @s sp.leave
+scoreboard players operation @s sp.epoch = #epoch sp.epoch
+tag @s add sp.active
 scoreboard players set @s sp.flip 0
-scoreboard players set @s sp.name 0
-execute rotated ~ 0 positioned ^ ^ ^3 run summon minecraft:mannequin ~ ~ ~ {Tags:["space_editor.proxy_spike","sp.main","sp.new"],immovable:1b,NoGravity:1b,Invulnerable:1b,Silent:1b,PersistenceRequired:1b,hide_description:1b,CustomNameVisible:0b}
-scoreboard players operation @e[tag=sp.new,tag=sp.main,limit=1] sp.owner = @s sp.owner
-data modify storage space_editor:proxy_spike uuid set from entity @s UUID
-execute as @e[tag=sp.new,tag=sp.main,limit=1] run function space_editor:proxy_spike/set_profile with storage space_editor:proxy_spike
-tag @e[tag=sp.new,tag=sp.main] remove sp.new
+scoreboard players set @s sp.name 3
 scoreboard players set @s sp.follow 1
-function space_editor:proxy_spike/player_tick
+scoreboard players set @s sp.x 0
+scoreboard players set @s sp.y 0
+scoreboard players set @s sp.z 3000
+scoreboard players set @s sp.fy 0
+scoreboard players set @s sp.normal 2100
+scoreboard players set @s sp.inverted 2100
+scoreboard players set @s sp.demo 0
+execute at @s run function space_editor:proxy_spike/spawn_main
+execute at @s run function space_editor:proxy_spike/player_tick

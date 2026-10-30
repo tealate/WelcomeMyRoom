@@ -1,64 +1,195 @@
 # Stage06-1｜Mannequin単体技術検証
 
-06-1は同一Dimensionのプレイヤー1人を基本とする単体スパイクです。05のSpaceLinkGroupには接続しません。`storage space_editor:document` は変更しません。実装の正本は `tools/build_space_editor_stage6_1.py` で、05の生成後に06-1専用関数を追加します。
+2026-10-30。単体検証環境を実装し、公式26.1サーバーで検証しました。
+**クライアント描画の受入確認は未完了**です。SpaceLinkGroup、ActiveProjection、独自Dimensionには接続しません。
+`space_editor:document` は変更しません。通常体とDinnerbone体を並べ、本人の名前を独立Displayで表示します。
 
 ## ゲーム内で使う
 
-データパックはライブの `space_editor_datapack/` に配置済みです。**`/reload`** 後、チャットで以下を実行してください。リソース変更はないため `F3+T` は不要です。各関数は操作するプレイヤー自身が実行します。再生成は `python -B tools/build_space_editor_stage6_1.py` を使います。
+ライブの `space_editor_datapack/` に反映済み。**`/reload` のみ必要**です。画像・モデル変更はなく、`F3+T` は不要です。
+本人のチャットから実行してください（OP権限が必要）。
 
-| 操作 | コマンド |
+```mcfunction
+/reload
+/function space_editor:proxy_spike/help
+/function space_editor:proxy_spike/start
+```
+
+`start` は `pair` の別名です。本人の**ワールド座標Z+3**に反転体、X+2/Z+3に通常体を出します。
+南（+Z）を向けば前に見えます。視線を回すだけでは本人の周囲を回りません。
+F5、または `follow_off` で止めて周囲から観察してください。
+
+以下の操作には `/function space_editor:proxy_spike/` を付けます。
+
+| 操作 | 関数名・引数 |
 | --- | --- |
-| 自分のMannequinを約3ブロック前に生成し追従開始 | `/function space_editor:proxy_spike/spawn` |
-| 通常とDinnerboneを左右に比較（主役は反転、左側に通常）。Dinnerboneの文字はTeamで隠し、両体に元プレイヤー名を別表示 | `/function space_editor:proxy_spike/pair` |
-| 追従開始／再開 | `/function space_editor:proxy_spike/follow_on` |
-| 追従停止（その場に残す） | `/function space_editor:proxy_spike/follow_off` |
-| 主役をDinnerbone反転／通常へ | `/function space_editor:proxy_spike/flip_on` / `flip_off` |
-| `CustomNameVisible:0b` を比較 | `/function space_editor:proxy_spike/name_custom_hidden` |
-| Teamでネームタグを隠す | `/function space_editor:proxy_spike/name_team_hidden` |
-| `description` に元プレイヤー名を表示 | `/function space_editor:proxy_spike/name_description` |
-| 別の `text_display` で各Mannequinの頭付近に表示 | `/function space_editor:proxy_spike/name_text_display` |
-| 腕振りを試す | `/function space_editor:proxy_spike/swing_main` / `swing_off` |
-| 現在状態 | `/function space_editor:proxy_spike/status` |
-| 自分の検証Entityを全削除 | `/function space_editor:proxy_spike/delete` |
+| 通常1体を生成し追従開始 | `spawn` |
+| 通常＋Dinnerboneの2体比較を開始 | `pair` / `start` |
+| 追従を一時停止／再開 | `follow_off` / `follow_on` |
+| 自分の本体・名前を削除し終了 | `stop` / `delete` |
+| 全参加者の検証Entityを削除 | `clear_all`（管理者用、編集用Entityは対象外） |
+| 主役をDinnerbone／Grumm／通常へ | `flip_on` / `flip_grumm` / `flip_off` |
+| 両体の腕振りを比較 | `swing_main` / `swing_off` |
+| 10tick間隔の腕振りデモON／OFF | `swing_demo_on` / `swing_demo_off`（追従中のみ） |
+| 設定と本体NBTを確認 | `status` |
+| 本人と自分の主役のプロフィール表示 | `profile` |
+| 操作一覧 | `help` |
 
-状態表示の `follow` は1が追従中、`flip` は1がDinnerbone、`name mode` は0=`CustomNameVisible`、1=Team、2=`description`、3=`text_display`です。`/reload` は検証Entityを削除し追従を停止します。生成し直してください。プレイヤーが退出した場合も、対象チャンクがロードされた次のtickで検証Entityを回収します。未ロードチャンクは強制ロードしません。
+`spawn` / `pair` の再実行では自分の検証セットのみ置き換え、設定を既定値に戻します。
+通常の設定変更では本体を再生成しません。名前モード変更でもDisplayのUUIDを維持します。
+外部からDisplayだけを消した場合は追従tickで再作成します。
 
-`/fetchprofile entity @s` で本人のプロフィールを表示できます。`/fetchprofile entity @e[tag=sp.main,limit=1]` でMannequinのプロフィールも比較してください。`/fetchprofile` は表示用でstorageへコピーする機能ではありません。Mannequinの `profile` は本人のUUIDのみを設定して動的解決を試します。取得が遅い、または取得できない場合はデフォルトスキンで他の項目を続けてください。
+### 名前方式
 
-## 観察順序
-
-1. `pair` で通常と反転を並べ、F5などの三人称視点でスキン、防具、手持ち、胴体と頭、静止時の反転と描画高さを比較します。第三者視点でも確認してください。
-2. `name_custom_hidden` で通常時・視線を合わせた時のDinnerbone文字と反転状態を確認します。次に `name_team_hidden` を同様に確認します。
-3. `name_description` で文字が頭上ではなく `below_name` 相当の場所に出るか、名前が正しいかを確認します。`hide_description:1b` に戻すには `name_custom_hidden` を実行します。
-4. `name_text_display` で頭上名の文字向き、背景、文字サイズ、視距離、カメラ追従、高さを本物のプレイヤーネームタグと比較します。近くに別のプレイヤーがいても元プレイヤー名になるか確認します。
-   通常体は足元座標から約2.3ブロック上、Dinnerbone体は反転した頭に合わせて約0.7ブロック上に置きます。この高さは描画の実測前の仮値です。
-5. 歩行、旋回、ジャンプ・落下、しゃがみ、水泳、滑空を個別に試します。`swing_main` / `swing_off` はクリック検出との連動ではなく、明示的な腕振りテストです。通常／反転で双方を試します。
-6. 足場と天井で、反転時の表示足位置と実座標の差をF3+Bで確認します。必要な補正量を記録します。追従停止中の重力・押し出し・攻撃、`delete` と `/reload` 後の残留も確認します。
-
-## 技術検証レポート（2026-10-30）
-
-ここでのPASSは26.1サーバーのGameTestで実体状態を確認できたものだけです。クライアント描画を伴う事項は実機で未確認です。
-
-| 項目 | 判定 | 証拠・次の確認 |
+| 関数名 | mode | 設定・観察対象 |
 | --- | --- | --- |
-| 生成・比較用2体・所有者別削除 | PASS | GameTestで生成、参照体、削除を確認。2人同時の見た目はUNVERIFIED。 |
-| `profile`へ本人UUID | PASS | GameTestでMannequinの`profile.id`を確認。 |
-| 本人のスキン表示 | UNVERIFIED | `/fetchprofile entity @s` とMannequinを比較し、スキン解決を目視。 |
-| 防具・両手装備 | PARTIAL | GameTestで頭防具と両手の内容を確認。表示と更新の見た目は目視。 |
-| 座標・Yaw/Pitch追従 | PARTIAL | GameTestで3ブロック前へのTPと追従を確認。頭・胴体のクライアント回転は未確認。 |
-| 歩行・ジャンプ・落下 | UNVERIFIED | TP追従中の歩行アニメーションと上下動、描画遅延を目視。 |
-| しゃがみ・水泳・滑空 | PARTIAL | プレイヤーのpredicateフラグからMannequin `pose`へ同期し、GameTestで3種の保存値を確認。アニメーションは目視。プレイヤーの`Pose`は`/data get`で取得できなかった。 |
-| `/swing` | PARTIAL | 26.1の構文を検証。表示の腕振り、元プレイヤーのクリックとの自動同期は未確認。 |
-| Dinnerbone文字列を設定 | PASS | GameTestで`CustomName:"Dinnerbone"`を確認。 |
-| Dinnerbone反転、スキン・装備・アニメ・回転 | UNVERIFIED | `pair`で通常体と比較。静止、歩行、しゃがみ、水泳、腕振りを個別に確認。 |
-| 反転時の描画基準点・天井補正 | UNVERIFIED | F3+Bで座標と表示位置を比較。補正は実測後に決める。 |
-| `CustomNameVisible`で文字を隠す | FAIL | 初回実機確認でDinnerboneの文字が見えた。視線を合わせた時だけか常時かは追加確認。 |
-| Teamで文字を隠し反転を維持 | UNVERIFIED | `pair`と`name_team_hidden`で文字と反転を目視。Team所属はGameTestで確認。 |
-| `description`による名前 | PARTIAL | 公式仕様上、表示位置は`below_name`相当。GameTestでモード切替を確認。実際の文字・位置は目視。 |
-| `text_display`による両体の名前 | PARTIAL | GameTestで2体それぞれの表示Entityと元プレイヤーUUIDからのユーザー名解決、通常／反転の配置座標を確認。背景・サイズ・見た目の高さ・追従は実機確認。 |
-| 重力・ダメージ・衝突抑制 | PARTIAL | `immovable`、`NoGravity`、`Invulnerable`の保存状態をGameTestで確認。両Teamの`collisionRule never`を設定。実際の押し出しは目視。 |
-| 05回帰 | PASS | Stage05 GameTestとMinecraftコマンド構文検証が成功。 |
+| `name_custom_hidden` | 0 | Teamは表示許可、CustomNameVisible:0b、説明非表示。照準を合わせた時のDinnerboneを確認 |
+| `name_team_hidden` | 1 | nametagVisibility never、説明非表示。名前を隠して反転が維持されるか確認 |
+| `name_description` | 2 | Teamは表示許可、説明に本人名。Dinnerbone名称の非表示を保証するモードではない |
+| `name_text_display` | 3 | **既定方式**。本体はTeamで名前非表示、説明非表示。別Displayに本人名 |
+| `name_native_visible` | 4 | CustomNameVisible:1b。Dinnerbone文字を明示的に出す対照実験 |
 
-`description`は本物の頭上ネームタグとは位置が異なります。`text_display`も別Entityなので、プレイヤー名の描画規則（しゃがみ時の半透明化、視距離、深度、サイズ、背景、他Teamの色）と完全一致する保証はありません。クライアント実測で差を記録し、06-2以降の表示方式を決めてください。スキン取得に失敗した場合は、UUIDを維持したままデフォルトスキンで他の検証を続行します。
+モード0/1/2/4ではDisplayの `view_range` を0にして非表示にします。
+`hide_description` は「NPC」など説明行のみの設定です。CustomNameを隠す代わりにはしません。
+Mannequinのdescriptionはselectorをユーザー名に解決しないため、text_displayで解決済みの文字をコピーします。
 
-26.1の公式仕様は [`/swing` と `/fetchprofile entity`](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1)、[Mannequinのフィールドと`description`](https://feedback.minecraft.net/hc/en-us/articles/39966147272589-Minecraft-Java-Edition-1-21-9-The-Copper-Age)、[プロフィールの動的解決](https://feedback.minecraft.net/hc/en-us/articles/39092387123469-Minecraft-Java-Edition-Snapshot-25w34a-b) を参照。仕様の最新06-1は [Notion 06](https://app.notion.com/p/4041fd1a61518139a7f6ed7939cc5889) の2026-10-30節を優先しています。
+### 位置・高さ・文字の調整
+
+```mcfunction
+/function space_editor:proxy_spike/offset {x:0,y:0,z:3}
+/function space_editor:proxy_spike/flip_height {fy:0.0}
+/function space_editor:proxy_spike/label_height {normal:2.1,inverted:2.1}
+/function space_editor:proxy_spike/label_style {scale:1.0,background:1073741824}
+```
+
+- `offset`: 本人からの固定ワールド座標差。比較体はさらにX+2。各値はブロック単位、±16へ制限し1/1000単位で保存。
+- `flip_height`: 反転中の主役だけYへ加算する観察用補正。**座標のFlipYとは別**。既定0。
+- `label_height`: 各本体の足元からのUI高さ。既定は両方2.1で、反転しても身体の上に名前を保つ。反転した頭の近くを比較するなら `inverted:0.7` 等を指定。
+- ラベルは本体poseに応じ、通常高さからしゃがみ0.3、水泳／滑空1.2、睡眠1.6を引く。これらは未実測の調整用初期値。
+- `label_style`: 文字倍率0.1〜3.0のみ受理。背景は符号付きARGB整数（1073741824 = 0x40000000、0なら透明）。billboard:center、影なし、遮蔽あり、位置補間1tick。
+- オフセット・反転Y補正は次の追従tickから反映。follow_off中は位置を固定。名前方式、高さ、反転名称は停止中も変更可能。
+
+### 後片付けと復帰
+
+`follow_off` は観察用にEntityを残す一時停止です。**終了には `stop`** を使います。
+`/reload` / `clear_all` は全検証Entityを回収し追従停止。復帰は `start` / `spawn`。
+
+退出した本人のEntityは次tickで回収します。退出時にチャンクが未ロードでも、再ログイン時のleave_game統計差分で古いセッションを無効化します。
+生成世代IDを再利用せず、reload世代も別管理します。未ロード中に停止／再生成された古いEntityは再ロード時に回収します。
+未ロード中の即時削除はできず、強制ロードもしません。
+
+同一Dimensionが対象です。本人が別Dimensionへ移ると旧Dimensionのロード済みEntityは回収します。移動先では再びstartしてください。
+対象はバニラ3Dimensionのみです。無敵でも `/kill` は削除でき、手動で所有者scoreやタグを書き換える操作までは保護しません。
+
+## クライアントでの観察手順
+
+起動中のMinecraftクライアントがなかったため、自動確認は隔離した公式26.1サーバーで実施しました。
+次の目視検証をGameTest成功で代替しません。通常体と反転体を同じ動作で比較してください。
+
+1. `start`。本人のスキン、防具4部位、両手を比較。`profile`でUUIDを確認。デフォルトスキンなら待機時間と通信／キャッシュ状態を記録。
+2. `follow_off`。各方向からスキン・装備・頭と胴体の反転を観察。F3+Bで当たり判定、足の座標、表示高さを比較。
+3. `name_native_visible` → `name_custom_hidden` → `name_team_hidden`。照準を合わせる／外す両方で、Dinnerbone文字と反転維持を確認。
+4. `name_description` → `name_text_display`。本人名、文字の向き、背景、遮蔽、視距離を通常プレイヤーと比較。別プレイヤーを近くに置き名前が混線しないか確認。
+5. `follow_on`。静止してYaw±180度、Pitch上下。歩行、ダッシュ、斜め／後ろ歩き、ジャンプ、落下を個別に観察。**座標移動だけで歩行PASSにしない**。脚の振り、胴体の追随、頭の独立回転、遅延を見る。
+6. Shift、水泳、エリトラ滑空、ベッド睡眠を比較。`swing_demo_on`で腕振りと装備・反転を同時確認し、`swing_demo_off`で解除。
+7. 天井下で停止してflip_heightを調整、一度追従再開で反映して再停止。各poseの足の表示位置、天井面、必要Y補正量を記録。
+8. 2人でstart。片方だけ設定変更、stop、退出し、もう片方の本体・名前が残ることを確認。最後にclear_allとreloadで残留を確認。
+
+記録は「通常／反転、pose、name mode、視点・距離、期待、実際、補正量」の組で残してください。
+スキン解決失敗の理由はデータパックから取得できません。正しいUUIDかはprofile、詳細はクライアントログで調べます。
+
+## 検証結果（2026-10-30）
+
+PASSは確認方法に記した範囲のみ。描画全体のPASSではありません。
+
+| 項目 | 結果 | 確認方法 | 制限 |
+| --- | --- | --- | --- |
+| 生成・停止・所有者別削除 | PASS | 公式26.1 GameTestで2名の異なるUUIDと削除範囲を検査 | 消失の描画タイミングは未確認 |
+| スキン | PARTIAL | profile.idと本人UUIDの完全一致 | スキン表示はUNVERIFIED。取得不能なら標準スキン |
+| 座標・Yaw/Pitch・頭Yaw | PASS | 固定オフセット、Y移動、±180度越えのYawを数値比較 | 独立したbodyYawの完全コピー・描画補間は未確認 |
+| 歩行・走行アニメーション | UNVERIFIED | 実機手順5 | TP移動からバニラ側が演算。座標成功で代替しない |
+| ジャンプ・落下 | PARTIAL | Y座標追従を数値比較 | 表示と着地演出は未確認 |
+| しゃがみ・水泳・滑空・睡眠 | PARTIAL | predicate／sleeping_posからposeとラベル高さを検査 | 滑空角、ベッド向き、実描画は未確認 |
+| 腕振り | PARTIAL | swing後のswingingとoffhand状態、実際の近接命中からadvancement経由の転送をGameTestで確認 | 手動／デモも実装。描画は未確認。空振り・採掘・右クリックは完全同期しない |
+| 装備 | PARTIAL | 防具4部位・両手・空スロットに戻す更新を検査 | 食事・弓引き・盾使用の進行、主利き手は同期しない |
+| Dinnerbone反転 | UNVERIFIED | トリガー文字列・Grumm切替を検査、client jarの反転条件を調査 | モデル・スキン・装備・アニメの実描画は未確認 |
+| Dinnerbone非表示 | PARTIAL | Team所属とCustomNameVisible、反転用名称の維持を検査 | 実描画はUNVERIFIED。旧レポートのCustomNameVisible単独で文字が見えた記録は今回未追試 |
+| 元プレイヤー名 | PARTIAL | ProxyOne/ProxyTwoを文字列完全一致で比較、両体のラベル確認 | 標準ネームタグとの外見的一致は未確認 |
+| description比較 | PARTIAL | 解決済みユーザー名を実データで検査 | 説明行は名前とは別位置。Dinnerboneの置換にはならない |
+| ラベル再利用・姿勢追従 | PASS | モード変更でUUID維持、姿勢別高さ、欠損修復を検査 | ちらつきの目視は未確認 |
+| 非干渉化 | PARTIAL | NBT、6実tickの停止、通常ダメージ拒否、削除後22tickで装備ドロップなし | collisionRule never設定済み。当たり判定・照準選択・重なりを完全には消さない |
+| 退出・古いセッション回収 | PASS | 実際のプレイヤー退出、古いepoch/owner/leave_game差分による回収 | 実チャンクのunload/reload往復は未試験。再出現時の状態を模擬 |
+| reload・再開 | PASS | 実際のserver resource reload後、回収と再生成を確認 | 設定は意図的に初期化 |
+| Stage01〜05保存データ保護 | PASS | スパイク操作前後でdocument NBTが同一 | 永続documentへ書き込まない |
+| Stage05回帰 | PASS | Stage05 GameTest、Region編集、SpaceLinkGroup、TP、2名・Dimension移動、保存とreload | クライアントでの既存ツール操作は今回未追試 |
+
+## 技術的な結論
+
+位置・Yaw/Pitch・装備・poseはコマンドで再現できます。独立bodyYaw、任意クリック、アイテム使用進行、個別スキンレイヤー設定は完全にはコピーしません。
+poseは変化時のみ書き、装備同期後にTPして、NBT再読込が頭回転を上書きしにくい順序にしています。
+
+26.1の `AvatarRenderer.isEntityUpsideDown` はケープレイヤーが有効な場合、非Player（Mannequin）に
+`LivingEntityRenderer` のCustomName判定を適用します。正確なDinnerbone/Grummがトリガーで、Teamの名前表示条件とは独立です。
+生成時の `hidden_layers:[]` でケープレイヤーを有効にします。**アカウントがケープの実テクスチャを持つことを要求する判定ではありません。**
+これは利用可能性のコード上の根拠であり、描画の実機PASSではありません。
+描画の高さ移動とZ軸180度回転にはpose別変換も絡むため、天井への足合わせは実測して補正してください。
+
+本体名はTeamで隠し、別DisplayをUIとして表示する方式を採用します。文字はbillboardでモデル反転を受けません。
+本物のプレイヤー名との主な差・未確認点は次のとおりです。
+
+- しゃがみ時の半透明化、壁越し表示、32/64ブロックの標準距離ルールを厳密に再現していない。
+- 本体とラベルは別パケットで動くため、補間・遅延・ちらつきの完全一致は保証しない。
+- 生成時にselectorで解決した名前を保持。後から本人のTeam色・prefixを変えた場合は再生成で取り直す。
+- 名前の高さは未実測の初期値。反転した頭の近くと身体の上のUI位置は別々に選べる。
+
+実機で反転しなければ、名称の完全一致、hidden_layersのcape、pose、Grumm比較を調査してください。
+代替のitem_display/block_displayと変換行列は180度回転できますが、任意ユーザーの動的スキン・装備・バニラ歩行をそのまま維持できません。
+固定スキンのRPモデルは代替候補に留まり、今回導入していません。Modは不要です。
+
+## 06-2へ引き継ぐAPIと注意点
+
+- 再利用単位: `set_profile`、`sync`/`set_pose`、`apply_name`、`update_labels`、所有者別生成／削除。
+- `sp.owner` は生成セッションIDで、恒久プレイヤーIDではない。本人UUIDはprofile、reload世代はsp.epochで扱う。
+- sp.selectedは関数内の一時タグ。同期実行を前提にし、scheduleを挟んで保持しない。
+- 1人最大2本体＋2ラベル。tickは3Dimensionの専用タグ・型だけを掃除し、各所有者の各roleをlimit=1で選択。再帰投影はない。
+- storage space_editor:proxy_spikeは一時scratch、設定はsp.* scoreboard、Teamはsp_hidden/sp_body。documentは未変更。
+- 06-2では固定オフセットのmoveを、05のspace_group/map・mapping/positionへ差し替える。SpaceLinkは複数Regionグループ、TeleportRegionのみ従来ペア。
+- 座標FlipYと描画反転を分離し、原則source.flipY XOR target.flipYで反転を選択。pose別Y補正は実測を引き継ぐ。
+- 頭／胴体の自然さ、装備反転、名前の自然さ、天井補正は採用前の未完了実機項目。06-4の複数投影／TP継続管理へ単体セッションをそのまま流用しない。
+
+## 生成と検証
+
+```powershell
+python -B tools/build_space_editor_stage6_1.py
+pwsh -NoProfile -File tools/test_space_editor_stage6_1.ps1
+pwsh -NoProfile -File tools/test_space_editor_stage5.ps1
+```
+
+06-1入口はStage05→04→03→02→01→resourcesを呼び、Stage05末尾が06-1を生成します。
+通常のbuild_space_editor_stage5.pyでも機能が残ります。下位段階を単独生成した場合は最後に05か06-1を再生成してください。
+Javaハーネスは開発用のみで、実ワールドにJavaコード／Modを導入する必要はありません。
+
+隔離worldはbuild/test-server/run-stage6_1-*、ログとXMLはbuild/test-server/stage6_1-*です。
+ValidateMinecraftのマクロ代表値による構文確認に加え、GameTestで実値を確認します。
+今回の構文検証は4,445件・エラー0、06-1と05はともに明示PASS・終了コード0です。
+今回も隔離テスト終了時にWindowsのworld rename警告が出ています。明示PASS・終了コード0を確認済みで、実ワールドは使用していません。
+
+計測は専用tickのみ、warmup20回＋100回、コマンド実行枠と壁時計で測定。
+最終計測（run-stage6_1-df576e5e75ad44e3bf69af1f6c1f0ceb）では、1体: **129枠、中央値0.919ms、p95 1.794ms**、2体: **134枠、中央値0.657ms、p95 0.975ms**。
+クライアント描画・通信・サーバー全tickの値ではなく、JIT/GCの影響で2体の値が短くなることもあります。
+上限は65536のまま。GameTestでは専用tickが1000枠未満であることも確認しています。
+
+JSONの追加は `space_editor_datapack/data/space_editor/advancement/proxy_spike/attack.json`。
+既存 `space_editor_datapack/data/space_editor/predicate/proxy_spike/` の `crouching.json`、`swimming.json`、`fall_flying.json` は改行をLFへ統一しただけで条件は同じです。
+データパック内JSON/mcmeta全21件を解析済み、関数参照解決、両生成入口のバイト一致、git diff --checkも通過しました。
+テクスチャ・モデルに最終差分はなく、対象のスキップもありません。
+
+## 参照
+
+- [最新Notion06-1、2026-10-30節](https://app.notion.com/p/4041fd1a61518139a7f6ed7939cc5889)
+- [26.1公式: swing、fetchprofile entity](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1)
+- [Mannequin公式フィールド](https://feedback.minecraft.net/hc/en-us/articles/39966147272589-Minecraft-Java-Edition-1-21-9-The-Copper-Age)
+- [動的profileの公式仕様](https://feedback.minecraft.net/hc/en-us/articles/39092387123469-Minecraft-Java-Edition-Snapshot-25w34a-b)
+
+fetchprofile entityは既存プロフィールの表示用で、storageへコピーするAPIではありません。
+今回は本人UUIDから動的profileを構成し、独自Web APIは使用していません。

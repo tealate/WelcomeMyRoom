@@ -1,4 +1,5 @@
 function space_editor:proxy_spike/select
-execute unless entity @e[tag=sp.selected,tag=sp.main] run kill @e[tag=sp.selected,tag=sp.label]
-execute unless entity @e[tag=sp.selected,tag=sp.reference] run kill @e[tag=sp.selected,tag=sp.label_reference]
-tag @e[tag=sp.selected,tag=space_editor.proxy_spike] add sp.online
+execute unless entity @e[type=minecraft:mannequin,tag=sp.selected,tag=sp.main,limit=1] run kill @e[type=minecraft:text_display,tag=sp.selected,tag=sp.label_main,limit=1]
+execute unless entity @e[type=minecraft:mannequin,tag=sp.selected,tag=sp.reference,limit=1] run kill @e[type=minecraft:text_display,tag=sp.selected,tag=sp.label_reference,limit=1]
+tag @e[type=minecraft:mannequin,tag=sp.selected] add sp.online
+tag @e[type=minecraft:text_display,tag=sp.selected] add sp.online

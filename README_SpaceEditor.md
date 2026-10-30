@@ -1,12 +1,15 @@
-# Space Editor — 第5段階（Region編集・TP・SpaceLinkGroup）
+# Space Editor — Stage05＋06-1単体Mannequin検証
 
 Minecraft Java Edition 26.1 用のライブ編集データパックです。現行 runtime の namespace は
 `space_editor:`、保存先は `storage space_editor:document` です。旧 `editor:` runtime と
 `storage editor:data` は使用しません。
 
-現在ロードされる実装は01〜05のSpaceLinkGroup対応版です。
+現在ロードされる実装は01〜05のSpaceLinkGroup対応版と、独立した06-1検証環境です。
 06-1のMannequin単体技術検証は [操作・検証レポート](docs/stage06-1-mannequin.md) を参照してください。
 SpaceLinkとの正式接続はまだありません。Maskは従来どおり独立Objectとして動作します。
+
+06-1は `/reload` 後に `/function space_editor:proxy_spike/start` で通常／反転の2体比較、
+`help` で操作一覧、`stop` で自分の検証Entityを削除できます。見た目の実機確認は未完了です。
 
 ## ライブ環境
 
@@ -35,6 +38,7 @@ SpaceLinkとの正式接続はまだありません。Maskは従来どおり独�
 ## 実装段階と生成
 
 generator の依存順は `stage5 -> stage4 -> stage3 -> stage2 -> stage1 -> resources` です。
+Stage05生成の末尾で06-1も生成するため、通常の再生成で検証機能が外れることはありません。
 最新の05を生成する場合は次を実行します。
 
 ```powershell
@@ -48,6 +52,7 @@ python tools/build_space_editor_stage5.py
 - 03 Paste transform: `tools/build_space_editor_stage3.py`
 - 04 Mask: `tools/build_space_editor_stage4.py`
 - 05 共通ペア編集 / TP: `tools/build_space_editor_stage5.py`
+- 06-1 Mannequin単体検証: `tools/build_space_editor_stage6_1.py`（05を含む）
 - 共有描画アセットのみ: `tools/build_space_editor_resources.py`
 
 ### 01: Region
@@ -205,6 +210,7 @@ pwsh -File tools/test_space_editor_stage5.ps1
 - Stage 03: `tools/SpaceEditorStage3GameTest.java` / `tools/test_space_editor_stage3.ps1`
 - Stage 04: `tools/SpaceEditorStage4GameTest.java` / `tools/test_space_editor_stage4.ps1`
 - Stage 05: `tools/SpaceEditorStage5GameTest.java` / `tools/test_space_editor_stage5.ps1`
+- Stage 06-1: `tools/SpaceEditorStage6_1GameTest.java` / `tools/test_space_editor_stage6_1.ps1`
 
 JSON／mcmeta はすべて parse し、現行 function 参照が `space_editor:` 内で解決することも確認します。
 GameTest 成功はクライアント描画や実マウス操作の確認を代替しません。

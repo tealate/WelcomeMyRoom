@@ -21,6 +21,7 @@ $runPath = Join-Path $projectRoot ('build/test-server/run-stage6_1-' + [guid]::N
 $testExit = $LASTEXITCODE
 Write-Output "Test world: $runPath/gametestworld"
 Get-Content build/test-server/stage6_1-command-validation.log | Select-String 'VALIDATION|ERROR'
-Get-Content build/test-server/stage6_1-runtime-validation.log | Select-String 'SPACE_EDITOR_STAGE6_1_RUNTIME_PASS|required tests passed|AssertionError|Command execution stopped due to limit' | ForEach-Object { if ($_.Line.Length -gt 1000) { $_.Line.Substring(0,1000) } else { $_.Line } }
+Get-Content build/test-server/stage6_1-runtime-validation.log | Select-String 'SPACE_EDITOR_STAGE6_1_RUNTIME_PASS|SPACE_EDITOR_STAGE6_1_PERF|required tests passed|AssertionError|Command execution stopped due to limit' | ForEach-Object { if ($_.Line.Length -gt 1000) { $_.Line.Substring(0,1000) } else { $_.Line } }
 if ($testExit -ne 0) { throw 'Minecraft GameTest failed; inspect build/test-server/stage6_1-runtime-validation.log' }
 if (-not (Select-String -Path build/test-server/stage6_1-runtime-validation.log -Pattern 'SPACE_EDITOR_STAGE6_1_RUNTIME_PASS' -Quiet)) { throw 'Stage 06-1 assertions did not finish' }
+if (Select-String -Path build/test-server/stage6_1-runtime-validation.log -Pattern 'Command execution stopped due to limit|Failed to load function|Failed to parse' -Quiet) { throw 'Command limit or resource loading error' }
