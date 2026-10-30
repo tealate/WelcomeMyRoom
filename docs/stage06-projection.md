@@ -94,7 +94,7 @@ Debug用Regionはリンクと同じローカルサイズを持つ通常Regionを
 
 経路キーは **owner + groupId + entrySourceId + targetId + sourceInstanceId**。同じRoomへ別Group・別入口から入る経路を潰しません。`id` はEntityとの結合キーです。`sourceId` はTPで変更できる現在の参照フレーム、`entrySourceId` は生成時から不変です。`uuid/currentInstanceId/targetInstanceId/roomId/dimension/point` も保持します。
 
-Scoreboardは `pr.owner/id/epoch/debug/gc/v/leave`。`pr.leave` は `minecraft.custom:minecraft.leave_game`、他はdummyです。Entityは `space_editor.proxy` と `pr.production` または `pr.debug` を持ち、本体とtext_displayが同じ経路ID・owner・世代を共有します。Team `pr_hidden` が名前と衝突を抑制します。06-1の `sp.*`・Teamとは分離しています。
+Scoreboardは `pr.owner/id/epoch/debug/gc/remove/v/leave`。`pr.leave` は `minecraft.custom:minecraft.leave_game`、他はdummyです。Entityは `space_editor.proxy` と `pr.production` または `pr.debug` を持ち、本体とtext_displayが同じ経路ID・owner・世代を共有します。Team `pr_hidden` が名前と衝突を抑制します。06-1の `sp.*`・Teamとは分離しています。
 
 1. root tickで専用型・専用タグの古い世代、失効経路のEntityを分散回収。各Dimension・型ごと16体/tick、正常なEntityは40tick後に再確認。退出ownerは別途一括回収。
 2. Stage05が全プレイヤーのTP前snapshotと `spaceLinkContacts` を生成。
@@ -112,13 +112,15 @@ Scoreboardは `pr.owner/id/epoch/debug/gc/v/leave`。`pr.leave` は `minecraft.c
 
 位置とYaw/PitchはStage05の半ミリブロック精度の座標変換を使います。反転状態は **source.flipY XOR target.flipY**。座標FlipYとモデルDinnerboneは別処理です。通常状態ではCustomNameを除去、反転状態では `Dinnerbone` を付与し、両状態でTeamの `nametagVisibility never` を維持します。`hide_description` と `CustomNameVisible:0b` だけには依存しません。
 
-論理pointは常にプレイヤー足元の写像です。存在範囲判定もこの点を使います。反転時のEntity Yはpointからpose別ピボットを引き、名前は身体上側に独立表示します。初期ピボットはstanding=1.9、crouching=1.6、swimming/fall_flying=0.7、sleeping=0.3ブロック。公式26.1クライアントの `LivingEntityRenderer` が反転時に使う `getBbHeight()+0.1` に基づく値で、天井合わせの実測完了値ではありません。`projection/visual` で補正可能です。
+論理pointは常にプレイヤー足元の写像です。存在範囲判定もこの点を使います。反転時のEntity Yはpointからpose別ピボットを引きます。通常名は頭上（pose高さ−0.1+labelGap）、反転名は補正後の本体YからlabelGapだけ下へ置き、180度回転した文字のベースライン分だけ頭側へ0.1ブロック戻します。pose別ピボットは維持されます。初期ピボットはstanding=1.9、crouching=1.6、swimming/fall_flying=0.7、sleeping=0.3ブロック。公式26.1クライアントの `LivingEntityRenderer` が反転時に使う `getBbHeight()+0.1` に基づく値で、天井合わせの実測完了値ではありません。`projection/visual` で補正可能です。
 
 スキンは元プレイヤーUUIDの動的 `profile`。防具4枠と両手を毎更新コピーし、poseは06-1 predicateとset_poseを再利用します。オフライン・プロフィール解決失敗ではデフォルトスキンになり得ます。`fetchprofile entity` のチャット出力をstorage取得APIとして扱いません。
 
 TP追従で歩行・胴体回転をクライアント側に再現させます。プレイヤーの独立した頭角度・腕振り時刻・歩行位相をサーバーNBTから完全取得するものではありません。成功した直接攻撃はadvancementから `/swing` を送りますが、空振り・採掘・全使用モーションの完全同期はありません。泳ぎ・滑空はposeと座標に対応し、エフェクトや重力の共有はしません。
 
-名前はbillboard center、背景0x40000000、shadowなし、see_throughなし、teleport_duration=1のtext_display。文字自体は反転しません。本物のネームタグとは壁越し表示、しゃがみ時の距離・透過、Team色の動的変更、身体との補間タイミングが異なります。名前は表示生成時に本人selectorから解決します。Debug名はGroup・入口→投影先・経路ID付きです。
+名前はbillboard center、背景0x40000000、shadowなし、see_throughなし、`teleport_duration=3` のtext_displayです。通常時は単位回転、反転時は `left_rotation:[0f,0f,1f,0f]` で文字を180度回し、切替時も同じDisplayを更新します。本物のネームタグとは壁越し表示、しゃがみ時の距離・透過、Team色の動的変更が異なります。名前は表示生成時に本人selectorから解決します。Debug名はGroup・入口→投影先・経路ID付きです。
+
+Mannequin削除は共通入口で追従対象タグを外し、透明化、装備6枠の除去、対応text_displayの即時削除を行います。2tick後、現在と同じロード済みチャンクのDimension内高度（Overworld -63、Nether/End 1）へTPし、さらに4tick後にkillします。削除待機中は `pr.removing` だけで管理され、通常追従・装備同期・名前生成・経路GCの対象に戻りません。最大待機は6tickで、reload・退出中もmaintenanceが回収します。サーバー状態と残留なしはGameTest対象ですが、元位置で死亡演出が見えないかはクライアントで **UNVERIFIED** です。
 
 本体は `immovable/NoGravity/Invulnerable/PersistenceRequired`、Teamの `collisionRule never` を使用します。押し出し・重力・通常ダメージを抑制しますが、視線のEntity選択や完全なヒットボックス消去を保証しません。敵MobのAI制御は対象外です。
 
@@ -152,7 +154,8 @@ pwsh -NoProfile -File tools/test_space_editor_stage6_1.ps1
 |未ロード先|PASS|実際に未ロードの位置へRegionを移し、経路保持・表示復帰をassert|
 |任意の停止済みサーバーからの再起動|UNVERIFIED|reloadは確認済み。プロセス再起動を伴う再接続は別実機項目|
 |スキン・歩行・頭/胴体の自然さ|UNVERIFIED（今回のクライアント）|06-1実現可能とのユーザー報告を継承。正式変換下の見た目は今回未操作|
-|Dinnerbone反転・装備反転・名前の自然さ|UNVERIFIED（今回のクライアント）|設定とTeam/ラベルは確認。視覚上のPASSとはしない|
+|Dinnerbone反転・装備反転・名前の自然さ|UNVERIFIED（今回のクライアント）|設定、Team、3tick、通常/反転回転、頭上/頭下座標を確認。視覚上のPASSとはしない|
+|削除時の死亡演出|UNVERIFIED（クライアント必須）|不可視効果・装備除去、2tick後TP、さらに4tick後kill、残留なしを確認。死亡モーション／白粒子が元位置で消えたとは断定しない|
 |非干渉化|PARTIAL|サーバー設定を実装。完全な当たり判定消去なし|
 |additive demo|PASS|8Region、再実行、投影/Debug/TP、削除後に無関係Regionがバイト一致|
 
@@ -160,15 +163,15 @@ pwsh -NoProfile -File tools/test_space_editor_stage6_1.ps1
 
 |SpaceLink数|存在範囲数|人数|論理経路|本番/Debug本体|最大コマンド枠|中央値ms|p90相当ms|
 |---:|---:|---:|---:|---:|---:|---:|---:|
-|4|4|1|3|3/0|3,107|3.741|13.898|
-|16|16|1|15|15/0|10,847|10.865|13.274|
-|64|64|1|63|55/0|33,541|21.291|25.062|
-|64|64|2|126|117/0|63,558|24.524|37.354|
-|64|64|2|126|117/119|63,650|25.960|33.740|
+|4|4|1|3|3/0|3,225|2.950|3.846|
+|16|16|1|15|15/0|11,119|14.433|17.290|
+|64|64|1|63|55/0|33,843|28.525|37.758|
+|64|64|2|126|117/0|63,804|27.006|42.439|
+|64|64|2|126|117/119|63,957|27.846|39.639|
 
-最終上表の測定worldは `run-stage6-9b282975894548d1a3f213bea8883403`。64+64+TP2のケースは130 Regionで、ユーザーが挙げた64総Regionより重い構成です。96ブロック範囲外などの本体は休止しています。最大ケースの余裕は1,886枠で、追加の大規模機能を同じtickに載せられるという保証ではありません。Debugありは一巡32tickに低下します。上限を上げる変更はありません。
+最終上表の測定worldは `run-stage6-83b0a8e59b9e426db1ca85a95ca0a3a4`。64+64+TP2のケースは130 Regionで、ユーザーが挙げた64総Regionより重い構成です。96ブロック範囲外などの本体は休止しています。最大ケースの余裕は1,579枠で、追加の大規模機能を同じtickに載せられるという保証ではありません。Debugありは一巡32tickに低下します。上限を上げる変更はありません。
 
-最終ValidateMinecraftは **5,651コマンド・エラー0**。Stage06の全Phase・reload・負荷・demoは明示PASS・終了コード0。Stage01〜05と06-1の既存GameTestもそれぞれrequired-test成功・終了コード0を確認しました。下位段階のランナーは `tools/test_space_editor_stage1.ps1`〜`stage5.ps1` です。Stage05では64接続先・2人の既存tickが51,925枠で完了しています。
+最終ValidateMinecraftは **5,721コマンド・エラー0**。Stage06の全Phase・reload・負荷・demoは明示PASS・終了コード0。06-1とStage05のGameTestもrequired-test成功・終了コード0を確認しました。下位段階のランナーは `tools/test_space_editor_stage1.ps1`〜`stage5.ps1` です。Stage05では64接続先・2人の既存tickが51,925枠で完了しています。
 
 JSON/mcmeta 6,822件の解析、関数参照解決、05/06生成入口のバイト一致、`git diff --check`を確認しました。追加JSONは `space_editor_datapack/data/space_editor/advancement/projection/attack.json` のみ。テクスチャ・モデルに差分はありません。
 
@@ -176,7 +179,7 @@ JSON/mcmeta 6,822件の解析、関数参照解決、05/06生成入口のバイ�
 
 ## 実機で残る確認とStage07への引き継ぎ
 
-上のdemoで、通常/反転それぞれの歩行・走行・ジャンプ・しゃがみ、視線だけ動かした頭と胴体、装備・両手・攻撃、名前の背景と遮蔽を確認してください。水泳・滑空・睡眠は対応poseの成立する場所を別途用意します。天井合わせは、ブロック面と反転した足を比較してpose別pivotを調整します。TP中の身体と名前の見かけの連続性もクライアントで確認が必要です。
+上のdemoで、通常/反転それぞれの歩行・走行・ジャンプ・しゃがみ、視線だけ動かした頭と胴体、装備・両手・攻撃、名前の背景と遮蔽を確認してください。水泳・滑空・睡眠は対応poseの成立する場所を別途用意します。天井合わせは、ブロック面と反転した足を比較してpose別pivotを調整します。名前の3tick補間、反転時の180度文字回転と頭下配置、反転解除時のUUID維持を目視確認してください。さらに単体・複数・Debug OFF・退出・reloadで削除し、元位置に死亡モーション／白粒子／装備や本体の飛び去りが見えず、低高度TP先の演出も通常視界へ入らないことを確認してください。
 
 Stage07への接続点は `route_actor/update` のowner/instance照合、`debug_frame`・`render_*` のtarget座標解決、`after` の転送記録です。現在は同一Dimensionの離れたRoom、通常 `se.instance=0` で利用します。保存済み `sourceInstanceId` と `currentInstanceId` を、将来のInstance移動に合わせて更新するadapterを追加してください。`targetInstanceId` はRegion.instanceIdまたは0を保存するだけで、別Instanceの実体配置を生成しません。
 

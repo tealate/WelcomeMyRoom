@@ -11,6 +11,7 @@ scoreboard objectives add sp.fy dummy
 scoreboard objectives add sp.normal dummy
 scoreboard objectives add sp.inverted dummy
 scoreboard objectives add sp.demo dummy
+scoreboard objectives add sp.remove dummy
 scoreboard objectives add sp.v dummy
 scoreboard objectives add sp.leave minecraft.custom:minecraft.leave_game
 scoreboard players add #next sp.owner 0

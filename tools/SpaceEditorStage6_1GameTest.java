@@ -43,6 +43,7 @@ public class SpaceEditorStage6_1GameTest {
             e->e.entityTags().contains("sp.selected") && e.entityTags().contains("sp.label_"+role)).getFirst();
     }
     static void near(double actual,double expected,String message) { check(Math.abs(actual-expected)<0.002,message+" actual="+actual+" expected="+expected); }
+    static void finishDeletes(){for(int i=0;i<6;i++)cmd("function space_editor:proxy_spike/tick");}
     static String textOf(Object entity,String name) {
         try { var method=entity.getClass().getDeclaredMethod(name);method.setAccessible(true);return ((net.minecraft.network.chat.Component)method.invoke(entity)).getString(); }
         catch(ReflectiveOperationException ex) { throw new AssertionError(ex); }
@@ -108,6 +109,7 @@ public class SpaceEditorStage6_1GameTest {
                     pcmd("function space_editor:proxy_spike/pair");
                     check(textOf(label("main"),"getText").equals("ProxyOne"),"restart after actual resource reload");
                     pcmd("function space_editor:proxy_spike/stop");
+                    finishDeletes();check(matches("execute unless entity @e[tag=sp.removing]"),"reload and final stop deletion queues fully drain");
                     System.out.println("SPACE_EDITOR_STAGE6_1_RUNTIME_PASS: exact owner names/UUID profile, two-player isolation, fixed offset and rotation, label reuse/pose heights, equipment, native modes, swing state, logout, stale epochs/generations, reload, command budget, physical pause, no item drops");
                     done[0]=true;h.succeed();return;
                 }
@@ -129,9 +131,13 @@ public class SpaceEditorStage6_1GameTest {
                 check(body("main").isModelPartShown(net.minecraft.world.entity.player.PlayerModelPart.CAPE),"cape layer enabled for inversion predicate");
                 check(matches("execute if data entity @e[tag=sp.label_main,limit=1] text.text"),"inverted mannequin shows source player name");
                 check(matches("execute if data entity @e[tag=sp.label_reference,limit=1] text.text"),"normal mannequin shows source player name");
-                near(label("main").getY(),84.1,"inverted name stays above model volume");
+                near(label("main").getY(),81.7,"inverted name is below the head");
                 near(label("reference").getX(),2,"reference separation");
                 near(label("reference").getY(),84.1,"normal name height");
+                check(matches("execute if data entity @e[tag=sp.label_main,limit=1] {teleport_duration:3}"),"main label uses three-tick teleport interpolation");
+                check(matches("execute if data entity @e[tag=sp.label_reference,limit=1] {teleport_duration:3}"),"reference label uses three-tick teleport interpolation");
+                check(matches("execute if data entity @e[tag=sp.label_main,limit=1] {transformation:{left_rotation:[0f,0f,1f,0f]}}"),"inverted label rotates 180 degrees");
+                check(matches("execute if data entity @e[tag=sp.label_reference,limit=1] {transformation:{left_rotation:[0f,0f,0f,1f]}}"),"normal reference label stays upright");
                 check(textOf(label("main"),"getText").equals("ProxyOne"),"exact resolved username main");
                 check(textOf(label("reference"),"getText").equals("ProxyOne"),"exact resolved username reference");
                 var mainId=body("main").getUUID();var labelId=label("main").getUUID();
@@ -150,6 +156,8 @@ public class SpaceEditorStage6_1GameTest {
                 check(body("main").getUUID().equals(mainId)&&label("main").getUUID().equals(labelId),"mode changes reuse body and label UUIDs");
                 pcmd("function space_editor:proxy_spike/flip_grumm");check(body("main").getCustomName().getString().equals("Grumm"),"Grumm trigger");
                 pcmd("function space_editor:proxy_spike/flip_off");check(body("main").getCustomName()==null,"flip off clears trigger");
+                check(label("main").getUUID().equals(labelId),"flip off reuses label UUID");near(label("main").getY(),84.1,"flip off returns label above head");
+                check(matches("execute if data entity @e[tag=sp.label_main,limit=1] {transformation:{left_rotation:[0f,0f,0f,1f]}}"),"flip off restores upright text");
                 pcmd("function space_editor:proxy_spike/flip_on");
                 pcmd("function space_editor:proxy_spike/swing_main");
                 check(body("main").swinging,"swing actually starts server animation");
@@ -190,13 +198,13 @@ public class SpaceEditorStage6_1GameTest {
                 player.setPose(net.minecraft.world.entity.Pose.CROUCHING);
                 pcmd("function space_editor:proxy_spike/player_tick");
                 check(matches("execute if data entity @e[tag=sp.main,limit=1] {pose:\"crouching\"}"),"crouching pose");
-                near(label("main").getY(),85.8,"crouching label follows pose");
+                near(label("main").getY(),83.4,"inverted crouching label follows pose correction below head");
                 player.setShiftKeyDown(false);
                 player.setSwimming(true);
                 player.setPose(net.minecraft.world.entity.Pose.SWIMMING);
                 pcmd("function space_editor:proxy_spike/player_tick");
                 check(matches("execute if data entity @e[tag=sp.main,limit=1] {pose:\"swimming\"}"),"swimming pose");
-                near(label("main").getY(),84.9,"swimming label height");
+                near(label("main").getY(),82.5,"inverted swimming label height");
                 player.setSwimming(false);
                 player.startFallFlying();
                 player.setPose(net.minecraft.world.entity.Pose.FALL_FLYING);
@@ -228,8 +236,11 @@ public class SpaceEditorStage6_1GameTest {
                 pcmd("function space_editor:proxy_spike/pair");
                 // Reproduce a stale entity returning from an unloaded chunk after /reload.
                 var stale=body("main");cmd("scoreboard players remove @e[tag=sp.selected,tag=sp.main,limit=1] sp.epoch 1");
-                cmd("function space_editor:proxy_spike/tick");check(!stale.isAlive(),"stale reload epoch is collected even if owner online");
+                cmd("function space_editor:proxy_spike/tick");check(stale.isAlive()&&stale.entityTags().contains("sp.removing")&&stale.hasEffect(net.minecraft.world.effect.MobEffects.INVISIBILITY),"stale reload epoch enters hidden deletion even if owner online");
                 check(matches("execute unless entity @e[tag=sp.label_main]"),"stale body's name removed with it");
+                check(stale.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).isEmpty()&&stale.getMainHandItem().isEmpty(),"deleting spike has no equipment");
+                cmd("function space_editor:proxy_spike/tick");cmd("function space_editor:proxy_spike/tick");near(stale.getY(),-63,"spike teleports to loaded in-bounds disposal height after two ticks");
+                for(int i=0;i<4;i++)cmd("function space_editor:proxy_spike/tick");check(!stale.isAlive(),"stale spike is killed four ticks after disposal teleport");
                 pcmd("function space_editor:proxy_spike/spawn");
                 cmd("kill @e[tag=sp.selected,tag=sp.label_main]");cmd("function space_editor:proxy_spike/tick");
                 check(textOf(label("main"),"getText").equals("ProxyOne"),"missing label repaired and survives cleanup in same tick");
@@ -238,7 +249,8 @@ public class SpaceEditorStage6_1GameTest {
                 cmd("scoreboard players operation @e[tag=sp.stale_test] sp.epoch = #epoch sp.epoch");
                 cmd("scoreboard players set @e[tag=sp.stale_test] sp.owner 999999");
                 cmd("function space_editor:proxy_spike/tick");
-                check(matches("execute unless entity @e[tag=sp.stale_test]"),"old generation collected without touching current body");
+                check(matches("execute if entity @e[tag=sp.stale_test,tag=sp.removing]"),"old generation enters deletion without touching current body");finishDeletes();
+                check(matches("execute unless entity @e[tag=sp.stale_test]"),"old generation fully collected after deletion wait");
                 check(body("main").isAlive(),"current generation survives stale cleanup");
                 pcmd("scoreboard players add @s sp.leave 1");cmd("function space_editor:proxy_spike/tick");
                 check(matches("execute unless entity @e[tag=space_editor.proxy_spike]"),"logout/rejoin statistic invalidates unloaded old session");

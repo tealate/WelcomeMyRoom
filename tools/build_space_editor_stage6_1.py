@@ -32,7 +32,7 @@ def target(role):
 def generate():
     append_once(F / "load.mcfunction", "function space_editor:proxy_spike/load")
     append_once(F / "tick.mcfunction", "function space_editor:proxy_spike/tick")
-    objectives = ("owner", "follow", "flip", "name", "epoch", "seen", "x", "y", "z", "fy", "normal", "inverted", "demo", "v")
+    objectives = ("owner", "follow", "flip", "name", "epoch", "seen", "x", "y", "z", "fy", "normal", "inverted", "demo", "remove", "v")
     put("load", *[f"scoreboard objectives add sp.{o} dummy" for o in objectives],
         "scoreboard objectives add sp.leave minecraft.custom:minecraft.leave_game",
         "scoreboard players add #next sp.owner 0",
@@ -44,14 +44,24 @@ def generate():
         "function space_editor:proxy_spike/clear_all",
         f'data modify {S} note set value "Transient Stage06-1 scratch; document untouched"')
     put("clear_all", "scoreboard players add #epoch sp.epoch 1",
-        *[f"execute in minecraft:{dim} run kill @e[type=minecraft:{typ},tag=space_editor.proxy_spike]" for dim in DIMS for typ in TYPES],
+        *[f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=space_editor.proxy_spike] run function space_editor:proxy_spike/delete_start" for dim in DIMS],
+        *[f"execute in minecraft:{dim} run kill @e[type=minecraft:text_display,tag=space_editor.proxy_spike]" for dim in DIMS],
         "scoreboard players set @a sp.follow 0", "tag @a remove sp.active")
     # Sweep only the two managed entity types, once per dimension; never recurse over projections.
     put("tick",
-        *[f"execute in minecraft:{dim} as @e[type=minecraft:{typ},tag=space_editor.proxy_spike] unless score @s sp.epoch = #epoch sp.epoch run kill @s" for dim in DIMS for typ in TYPES],
+        *[line for dim,y in (("overworld",-63),("the_nether",1),("the_end",1)) for line in (
+            f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=sp.removing,scores={{sp.remove=1..}}] at @s if dimension minecraft:{dim} run scoreboard players remove @s sp.remove 1",
+            f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=sp.removing,scores={{sp.remove=4}}] at @s if dimension minecraft:{dim} run tp @s ~ {y} ~",
+            f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=sp.removing,scores={{sp.remove=..0}}] at @s if dimension minecraft:{dim} run kill @s",
+        )],
+        *[f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=space_editor.proxy_spike] unless score @s sp.epoch = #epoch sp.epoch run function space_editor:proxy_spike/delete_start" for dim in DIMS],
+        *[f"execute in minecraft:{dim} as @e[type=minecraft:text_display,tag=space_editor.proxy_spike] unless score @s sp.epoch = #epoch sp.epoch run kill @s" for dim in DIMS],
         *[f"execute in minecraft:{dim} run tag @e[type=minecraft:{typ},tag=space_editor.proxy_spike] remove sp.online" for dim in DIMS for typ in TYPES],
         "execute as @a[tag=sp.active] at @s run function space_editor:proxy_spike/owner_tick",
-        *[f"execute in minecraft:{dim} run kill @e[type=minecraft:{typ},tag=space_editor.proxy_spike,tag=!sp.online]" for dim in DIMS for typ in TYPES])
+        *[line for dim in DIMS for line in (
+            f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=space_editor.proxy_spike,tag=!sp.online] run function space_editor:proxy_spike/delete_start",
+            f"execute in minecraft:{dim} run kill @e[type=minecraft:text_display,tag=space_editor.proxy_spike,tag=!sp.online]",
+        )])
     put("owner_tick",
         "execute unless score @s sp.epoch = #epoch sp.epoch run return run function space_editor:proxy_spike/stop",
         "execute unless score @s sp.seen = @s sp.leave run return run function space_editor:proxy_spike/stop",
@@ -76,7 +86,7 @@ def generate():
         "scoreboard players operation @s sp.epoch = #epoch sp.epoch",
         "tag @s add sp.active",
         *[f"scoreboard players set @s sp.{key} {value}" for key, value in
-          dict(flip=0, name=3, follow=1, x=0, y=0, z=3000, fy=0, normal=2100, inverted=2100, demo=0).items()],
+          dict(flip=0, name=3, follow=1, x=0, y=0, z=3000, fy=0, normal=2100, inverted=-300, demo=0).items()],
         "execute at @s run function space_editor:proxy_spike/spawn_main",
         "execute at @s run function space_editor:proxy_spike/player_tick")
     for role, x in (("main", 0), ("reference", 2)):
@@ -97,7 +107,16 @@ def generate():
         "execute at @s if loaded ~2 ~ ~3 run function space_editor:proxy_spike/spawn_reference",
         "function space_editor:proxy_spike/flip_on", "execute at @s run function space_editor:proxy_spike/player_tick")
     put("start", "function space_editor:proxy_spike/pair")
-    put("delete_selected", "function space_editor:proxy_spike/select", f"kill {LABEL}", f"kill {BODY}")
+    put("delete_start",
+        "scoreboard players operation #delete_owner sp.owner = @s sp.owner",
+        f"execute if entity @s[tag=sp.main] as @e[type=minecraft:text_display,tag=space_editor.proxy_spike,tag=sp.label_main] if score @s sp.owner = #delete_owner sp.owner run kill @s",
+        f"execute if entity @s[tag=sp.reference] as @e[type=minecraft:text_display,tag=space_editor.proxy_spike,tag=sp.label_reference] if score @s sp.owner = #delete_owner sp.owner run kill @s",
+        "tag @s add sp.removing", "tag @s remove space_editor.proxy_spike",
+        "tag @s remove sp.main", "tag @s remove sp.reference", "tag @s remove sp.selected", "tag @s remove sp.online", "tag @s remove sp.new",
+        "effect give @s minecraft:invisibility infinite 0 true",
+        *[f"item replace entity @s {slot} with minecraft:air" for slot in ("armor.head","armor.chest","armor.legs","armor.feet","weapon.mainhand","weapon.offhand")],
+        "scoreboard players set @s sp.remove 6")
+    put("delete_selected", "function space_editor:proxy_spike/select", f"execute as {BODY} run function space_editor:proxy_spike/delete_start", f"kill {LABEL}")
     put("stop", "execute unless entity @s[type=minecraft:player] run return 0",
         "function space_editor:proxy_spike/delete_selected", "scoreboard players set @s sp.follow 0",
         "scoreboard players set @s sp.owner 0", "tag @s remove sp.active")
@@ -127,7 +146,7 @@ def generate():
         f"data modify entity {target(role)} hide_description set value 0b",
         f"data modify entity {target(role)} description set from entity {target('label_' + role)} text")])
     put("name_text_apply", *[line for role in ("main", "reference") for line in (
-        f'execute if entity {target(role)} unless entity {target("label_" + role)} at {target(role)} run summon minecraft:text_display ~ ~2.1 ~ {{Tags:["space_editor.proxy_spike","sp.label","sp.label_{role}","sp.new"],billboard:"center",background:1073741824,see_through:0b,shadow:0b,teleport_duration:1,view_range:0.5f,text:{{text:""}}}}',
+        f'execute if entity {target(role)} unless entity {target("label_" + role)} at {target(role)} run summon minecraft:text_display ~ ~2.1 ~ {{Tags:["space_editor.proxy_spike","sp.label","sp.label_{role}","sp.new"],billboard:"center",background:1073741824,see_through:0b,shadow:0b,teleport_duration:3,view_range:0.5f,text:{{text:""}}}}',
         "function space_editor:proxy_spike/initialize_new",
         f"data modify {S} uuid set from entity @s UUID",
         f"execute as @e[type=minecraft:text_display,tag=sp.new,limit=1] run function space_editor:proxy_spike/set_label with {S}",
@@ -160,7 +179,11 @@ def generate():
         f"execute as {BODY} run function space_editor:proxy_spike/set_pose with {S}",
         *[f"item replace entity {BODY} {slot} from entity @s {slot}" for slot in ("armor.head", "armor.chest", "armor.legs", "armor.feet", "weapon.mainhand", "weapon.offhand")])
     put("set_pose", '$execute unless data entity @s {pose:"$(pose)"} run data modify entity @s pose set value "$(pose)"')
-    put("update_labels", *[line for role in ("main", "reference") for line in (
+    put("update_labels",
+        f"execute if score @s sp.flip matches 1 as {target('label_main')} run data merge entity @s {{transformation:{{left_rotation:[0f,0f,1f,0f]}}}}",
+        f"execute if score @s sp.flip matches 0 as {target('label_main')} run data merge entity @s {{transformation:{{left_rotation:[0f,0f,0f,1f]}}}}",
+        f"execute as {target('label_reference')} run data merge entity @s {{transformation:{{left_rotation:[0f,0f,0f,1f]}}}}",
+        *[line for role in ("main", "reference") for line in (
         "scoreboard players operation #height sp.v = @s sp.normal",
         *( ["execute if score @s sp.flip matches 1 run scoreboard players operation #height sp.v = @s sp.inverted"] if role == "main" else [] ),
         f'execute if data entity {target(role)} {{pose:"crouching"}} run scoreboard players remove #height sp.v 300',
@@ -201,7 +224,7 @@ def generate():
         "pair: 通常＋Dinnerbone比較 / spawn: 1体 / follow_on・follow_off: 追従・一時停止",
         "flip_on・flip_off・flip_grumm / name_custom_hidden・name_team_hidden・name_description・name_text_display・name_native_visible",
         "swing_main・swing_off / swing_demo_on・swing_demo_off: 連続腕振り / profile・status",
-        'offset {x:0,y:0,z:3} / flip_height {fy:0} / label_height {normal:2.1,inverted:2.1}',
+        'offset {x:0,y:0,z:3} / flip_height {fy:0} / label_height {normal:2.1,inverted:-0.3}',
         'label_style {scale:1.0,background:1073741824} / stop・delete: 自分を全削除 / clear_all: 全員分削除',
         "/reload 後は pair / spawn で再開。見た目は未検証。詳細 docs/stage06-1-mannequin.md" )])
     data = ROOT / "space_editor_datapack/data/space_editor"

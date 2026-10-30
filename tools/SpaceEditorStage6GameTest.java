@@ -21,6 +21,7 @@ public class SpaceEditorStage6GameTest {
     static CompoundTag runtime(){return helper.getLevel().getServer().getCommandStorage().get(RUNTIME);}
     static void cmd(String s){helper.getLevel().getServer().getCommands().performPrefixedCommand(source,s);}
     static void pcmd(String s){helper.getLevel().getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack().withPermission(net.minecraft.server.permissions.PermissionSet.ALL_PERMISSIONS),s);}
+    static boolean matches(String s){cmd("execute store success storage space_editor:projection test byte 1 run "+s);return state().getBooleanOr("test",false);}
     static void check(boolean ok,String message){if(!ok)throw new AssertionError(message+" active="+state().getListOrEmpty("active"));}
     static void near(double a,double b,String message){check(Math.abs(a-b)<0.0011,message+" actual="+a+" expected="+b);}
     static net.minecraft.server.level.ServerPlayer namedPlayer(String name){
@@ -40,9 +41,11 @@ public class SpaceEditorStage6GameTest {
         return helper.getLevel().getEntities(EntityType.MANNEQUIN,e->e.isAlive()&&e.entityTags().contains("test.selected")).stream().findFirst().orElseThrow(()->new AssertionError("missing body "+id+" debug="+debug+" state="+state()));
     }
     static List<? extends net.minecraft.world.entity.decoration.Mannequin> bodies(boolean debug){return helper.getLevel().getEntities(EntityType.MANNEQUIN,e->e.isAlive()&&e.entityTags().contains("space_editor.proxy")&&e.entityTags().contains(debug?"pr.debug":"pr.production"));}
+    static List<? extends net.minecraft.world.entity.decoration.Mannequin> removing(){return helper.getLevel().getEntities(EntityType.MANNEQUIN,e->e.isAlive()&&e.entityTags().contains("pr.removing"));}
     static List<? extends net.minecraft.world.entity.Display.TextDisplay> labels(boolean debug){return helper.getLevel().getEntities(EntityType.TEXT_DISPLAY,e->e.entityTags().contains("space_editor.proxy")&&e.entityTags().contains(debug?"pr.debug":"pr.production"));}
     static String text(net.minecraft.world.entity.Display.TextDisplay e){try{var m=e.getClass().getDeclaredMethod("getText");m.setAccessible(true);return ((net.minecraft.network.chat.Component)m.invoke(e)).getString();}catch(Exception ex){throw new AssertionError(ex);}}
     static void tick(){cmd("function space_editor:projection/maintenance");cmd("function space_editor:teleport/tick");}
+    static void finishDeletes(){for(int i=0;i<6;i++)cmd("function space_editor:projection/maintenance");}
     static boolean loaded(int x,int z){cmd("execute store success storage space_editor:projection testLoaded byte 1 run execute if loaded "+x+" 81 "+z);return state().getBooleanOr("testLoaded",false);}
     static void at(double x,double y,double z,float yaw,float pitch){player.setPos(x,y,z);player.setYRot(yaw);player.setXRot(pitch);}
     static void frame(int id,int x,int z,String kind,int rotation,int flip,String room){
@@ -76,11 +79,18 @@ public class SpaceEditorStage6GameTest {
         near(b.getYRot(),105,"yaw mapped");near(b.getXRot(),-25,"pitch flip");
         check(b.getCustomName().getString().equals("Dinnerbone"),"relative inversion trigger");check(b.getTeam().getName().equals("pr_hidden"),"hide Dinnerbone");
         check(b.getItemBySlot(EquipmentSlot.HEAD).is(net.minecraft.world.item.Items.DIAMOND_HELMET),"armor copied");check(b.getOffhandItem().is(net.minecraft.world.item.Items.SHIELD),"offhand copied");
-        check(labels(false).size()==1&&text(labels(false).getFirst()).equals("ProjectorOne"),"original player name");
+        check(labels(false).size()==1&&text(labels(false).getFirst()).equals("ProjectorOne"),"original player name");var labelId=labels(false).getFirst().getUUID();
+        check(matches("execute if data entity @e[type=minecraft:text_display,tag=space_editor.proxy,tag=pr.production,limit=1] {teleport_duration:3}"),"production label uses three-tick teleport interpolation");
+        check(matches("execute if data entity @e[type=minecraft:text_display,tag=space_editor.proxy,tag=pr.production,limit=1] {transformation:{left_rotation:[0f,0f,1f,0f]}}"),"inverted production label rotates 180 degrees");
+        near(labels(false).getFirst().getY(),80.9,"inverted name includes the rotated-text baseline correction");
         for(int i=0;i<8;i++)tick();check(routes().size()==1&&body(id,false).getUUID().equals(uuid),"inside contact never respawns");
-        player.setShiftKeyDown(true);player.setPose(Pose.CROUCHING);tick();check(body(id,false).getPose()==Pose.CROUCHING,"pose reuse");near(body(id,false).getY(),81.4,"crouch pivot");
+        player.setShiftKeyDown(true);player.setPose(Pose.CROUCHING);tick();check(body(id,false).getPose()==Pose.CROUCHING,"pose reuse");near(body(id,false).getY(),81.4,"crouch pivot");near(labels(false).getFirst().getY(),81.2,"inverted crouching label keeps pose-specific head position and baseline correction");
         player.setShiftKeyDown(false);player.setPose(Pose.STANDING);
-        System.out.println("SPACE_EDITOR_STAGE6_PHASE1_PASS: mapping, rotation/relative flip, body/name/gear, UUID reuse");
+        cmd("data modify storage space_editor:document regions[{id:2}].flipY set value 0b");tick();
+        check(body(id,false).getCustomName()==null,"flip off clears Dinnerbone trigger");check(labels(false).getFirst().getUUID().equals(labelId),"flip transition reuses label UUID");
+        check(matches("execute if data entity @e[type=minecraft:text_display,tag=space_editor.proxy,tag=pr.production,limit=1] {transformation:{left_rotation:[0f,0f,0f,1f]}}"),"flip off restores normal label rotation");
+        near(labels(false).getFirst().getY(),83.1,"normal name returns above the head");
+        System.out.println("SPACE_EDITOR_STAGE6_PHASE1_PASS: mapping, label interpolation/flip/height, body/name/gear, UUID reuse");
     }
     static void phase2(){
         fixture(3);at(1,81,1,0,0);tick();check(routes().size()==2&&bodies(false).size()==2,"A projects B and C concurrently");
@@ -94,18 +104,23 @@ public class SpaceEditorStage6GameTest {
     }
     static void phase3(){
         fixture(3);cmd("data modify storage space_editor:document regions[{id:103}].x1m set value 22000");cmd("data modify storage space_editor:document regions[{id:103}].x2m set value 28000");
-        at(1,81,1,0,0);tick();int bid=route(2).getIntOr("id",0),cid=route(3).getIntOr("id",0);var buuid=body(bid,false).getUUID();
+        at(1,81,1,0,0);tick();int bid=route(2).getIntOr("id",0),cid=route(3).getIntOr("id",0);var buuid=body(bid,false).getUUID();var cuuid=body(cid,false).getUUID();
         at(5,81,1,0,0);tick();check(routes().size()==2,"outside link but inside existence stays active");
         cmd("data modify storage space_editor:document regions[{id:103}].x1m set value 22001");
         at(5.999,81,1,0,0);tick();check(routes().size()==2,"fractional existence minimum is inclusive");
         at(5.9995,81,1,0,0);tick();check(routes().size()==1&&route(2).getIntOr("id",0)==bid,"half-milliblock outside C removes only C");
+        var deletingC=(net.minecraft.world.entity.decoration.Mannequin)helper.getLevel().getEntity(cuuid);check(deletingC!=null,"removed C still exists during deletion wait");check(deletingC.entityTags().contains("pr.removing"),"removed C is detached into deletion queue tags="+deletingC.entityTags());check(deletingC.hasEffect(net.minecraft.world.effect.MobEffects.INVISIBILITY),"removed C has invisibility effect during deletion wait");
+        check(deletingC.getItemBySlot(EquipmentSlot.HEAD).isEmpty()&&deletingC.getMainHandItem().isEmpty(),"deleting C has no equipment");
+        cmd("function space_editor:projection/maintenance");check(deletingC.getY()>0,"deleting C waits one full tick before teleport");cmd("function space_editor:projection/maintenance");near(deletingC.getY(),-63,"deleting C teleports after two ticks");
+        for(int i=0;i<4;i++)cmd("function space_editor:projection/maintenance");check(!deletingC.isAlive(),"C deletion finishes four ticks after teleport");check(body(bid,false).getUUID().equals(buuid),"single-route deletion preserves B");
         at(5,81,1,0,0);tick();check(routes().size()==1,"return to existence does not reactivate");
         at(1,81,1,0,0);tick();check(routes().size()==2&&route(3).getIntOr("id",0)!=cid,"new link entry reactivates C");check(body(bid,false).getUUID().equals(buuid),"B unaffected by C recreation");
         frame(901,36,0,"region",270,0,"debug_b");frame(902,48,0,"region",0,1,"debug_c");
         pcmd("function space_editor:projection/debug/map {target:2,region:901}");pcmd("function space_editor:projection/debug/map {target:3,region:902}");pcmd("function space_editor:projection/debug/on");tick();
         check(bodies(true).size()==2,"two debug routes");near(body(bid,true).getX(),37,"debug relative room transform x");near(body(bid,true).getZ(),3,"debug relative room transform z");
+        check(labels(true).stream().allMatch(l->matches("execute if data entity @e[type=minecraft:text_display,tag=space_editor.proxy,tag=pr.debug,limit=1] {teleport_duration:3}")),"debug labels use three-tick teleport interpolation");
         check(body(bid,true).getCustomName()==null,"debug frame owns its own relative flip");check(labels(true).stream().allMatch(l->text(l).contains("ProjectorOne")&&text(l).contains("→")),"debug identifies owner and route");
-        pcmd("function space_editor:projection/debug/off");check(bodies(true).isEmpty()&&labels(true).isEmpty(),"debug off immediate debug-only cleanup");check(body(bid,false).getUUID().equals(buuid)&&routes().size()==2,"debug off preserves production");
+        var debugBodies=new ArrayList<>(bodies(true));pcmd("function space_editor:projection/debug/off");check(bodies(true).isEmpty()&&labels(true).isEmpty(),"debug off immediately detaches debug bodies and names");check(body(bid,false).getUUID().equals(buuid)&&routes().size()==2,"debug off preserves production");finishDeletes();check(debugBodies.stream().noneMatch(Entity::isAlive),"debug deletion wait fully drains");
         int restoredC=route(3).getIntOr("id",0);
         cmd("data modify storage space_editor:document regions[{id:3}].x1m set value 10000000");cmd("data modify storage space_editor:document regions[{id:3}].x2m set value 10004000");
         cmd("data modify storage space_editor:document regions[{id:103}].x1m set value 9998000");cmd("data modify storage space_editor:document regions[{id:103}].x2m set value 10004000");
@@ -115,7 +130,7 @@ public class SpaceEditorStage6GameTest {
         check(route(3).getIntOr("id",0)==restoredC&&bodies(false).size()==2,"loaded destination resumes existing logical route");
         cmd("data remove storage space_editor:document regions[{id:103}]");tick();check(routes().size()==1,"deleted existence removes related route");
         cmd("data modify storage space_editor:document regions[{id:2}].x1m set value 14000");cmd("data modify storage space_editor:document regions[{id:2}].x2m set value 18000");tick();near(body(bid,false).getX(),17,"live edited target bounds are used");
-        cmd("data modify storage space_editor:runtime hit set from storage space_editor:document regions[{id:2}]");pcmd("function space_editor:region/delete_selected");tick();check(routes().isEmpty()&&bodies(false).isEmpty()&&labels(false).isEmpty(),"Region deletion collects body and name");
+        var finalBodies=new ArrayList<>(bodies(false));cmd("data modify storage space_editor:runtime hit set from storage space_editor:document regions[{id:2}]");pcmd("function space_editor:region/delete_selected");tick();check(routes().isEmpty()&&bodies(false).isEmpty()&&labels(false).isEmpty(),"Region deletion detaches body and name");finishDeletes();check(finalBodies.stream().noneMatch(Entity::isAlive),"Region deletion leaves no live mannequin after wait");
         System.out.println("SPACE_EDITOR_STAGE6_PHASE3_PASS: existence exit/reentry, independent paths, debug transform/lifecycle, live editing/deletion");
     }
     static void teleportPair(){
@@ -170,7 +185,7 @@ public class SpaceEditorStage6GameTest {
         pcmd("function space_editor:play");at(33,81,37,0,0);tick();check(routes().size()==2,"demo links work");
         pcmd("function space_editor:projection/debug/on");tick();check(bodies(true).size()==2,"demo debug mappings work");
         pcmd("function space_editor:projection/demo/teleport");at(31,81,37,0,0);tick();at(33,81,37,0,0);tick();check(runtime().getListOrEmpty("transfers").size()==1,"demo adds working TP pair");
-        pcmd("function space_editor:projection/demo/cleanup");var remaining=helper.getLevel().getServer().getCommandStorage().get(DOCUMENT).getListOrEmpty("regions");check(remaining.equals(original),"demo cleanup preserves every unrelated Region byte-for-byte");check(bodies(false).isEmpty()&&bodies(true).isEmpty(),"demo cleanup no ghosts");
+        pcmd("function space_editor:projection/demo/cleanup");var remaining=helper.getLevel().getServer().getCommandStorage().get(DOCUMENT).getListOrEmpty("regions");check(remaining.equals(original),"demo cleanup preserves every unrelated Region byte-for-byte");check(bodies(false).isEmpty()&&bodies(true).isEmpty(),"demo cleanup detaches renders");finishDeletes();check(removing().isEmpty(),"demo cleanup deletion queue drains");
         System.out.println("SPACE_EDITOR_STAGE6_DEMO_PASS: additive setup, working links/debug/TP, idempotence, narrow cleanup");
     }
     static void test(GameTestHelper h){
@@ -185,7 +200,7 @@ public class SpaceEditorStage6GameTest {
                 case 6->{tick();check(routes().stream().map(r->r.getIntOr("id",0)).collect(java.util.stream.Collectors.toSet()).equals(reloadIds),"actual reload preserves path IDs");System.out.println("SPACE_EDITOR_STAGE6_RELOAD_PASS");phase[0]++;}
                 case 7->{stress(4,false);phase[0]++;}case 8->{stress(16,false);phase[0]++;}case 9->{stress(64,false);phase[0]++;}case 10->{stress(64,true);phase[0]++;}
                 case 11->{stress(64,true,true);phase[0]++;}case 12->{demoTest();phase[0]++;}
-                default->{cmd("function space_editor:projection/disable");System.out.println("SPACE_EDITOR_STAGE6_RUNTIME_PASS: four phases, reload, bounded full-tick load, additive demo");done[0]=true;h.succeed();}
+                default->{cmd("function space_editor:projection/disable");finishDeletes();check(removing().isEmpty(),"disable/reload deletion queues fully drain");System.out.println("SPACE_EDITOR_STAGE6_RUNTIME_PASS: four phases, reload, bounded full-tick load, additive demo");done[0]=true;h.succeed();}
             }
         }catch(Throwable ex){done[0]=true;ex.printStackTrace();h.fail(ex.getMessage());}});
     }

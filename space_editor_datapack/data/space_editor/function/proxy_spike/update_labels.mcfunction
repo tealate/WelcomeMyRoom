@@ -1,3 +1,6 @@
+execute if score @s sp.flip matches 1 as @e[type=minecraft:text_display,tag=sp.selected,tag=sp.label_main,limit=1] run data merge entity @s {transformation:{left_rotation:[0f,0f,1f,0f]}}
+execute if score @s sp.flip matches 0 as @e[type=minecraft:text_display,tag=sp.selected,tag=sp.label_main,limit=1] run data merge entity @s {transformation:{left_rotation:[0f,0f,0f,1f]}}
+execute as @e[type=minecraft:text_display,tag=sp.selected,tag=sp.label_reference,limit=1] run data merge entity @s {transformation:{left_rotation:[0f,0f,0f,1f]}}
 scoreboard players operation #height sp.v = @s sp.normal
 execute if score @s sp.flip matches 1 run scoreboard players operation #height sp.v = @s sp.inverted
 execute if data entity @e[type=minecraft:mannequin,tag=sp.selected,tag=sp.main,limit=1] {pose:"crouching"} run scoreboard players remove #height sp.v 300

@@ -15,7 +15,7 @@ scoreboard players set @s sp.y 0
 scoreboard players set @s sp.z 3000
 scoreboard players set @s sp.fy 0
 scoreboard players set @s sp.normal 2100
-scoreboard players set @s sp.inverted 2100
+scoreboard players set @s sp.inverted -300
 scoreboard players set @s sp.demo 0
 execute at @s run function space_editor:proxy_spike/spawn_main
 execute at @s run function space_editor:proxy_spike/player_tick

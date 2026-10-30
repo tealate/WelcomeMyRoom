@@ -37,14 +37,17 @@ def drain(name, queue, step, capacity=256):
     fn(name, [f"execute if data {P} {queue}[0] run function space_editor:projection/{name}_16"] * ((capacity + 15)//16))
 
 
-def kill_all(debug=False):
-    return [f"execute in minecraft:{dim} run kill @e[type=minecraft:{typ},tag=space_editor.proxy" + (",tag=pr.debug" if debug else "") + "]"
-            for dim in DIMS for typ in ("mannequin", "text_display")]
+def delete_entities(extra=""):
+    """Queue mannequins for hidden disposal; text displays have no death animation."""
+    return [line for dim in DIMS for line in (
+        f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=space_editor.proxy{extra}] run function space_editor:projection/delete/start",
+        f"execute in minecraft:{dim} run kill @e[type=minecraft:text_display,tag=space_editor.proxy{extra}]",
+    )]
 
 
 def lifecycle():
     fn("load", [
-        *[f"scoreboard objectives add pr.{n} dummy" for n in ("owner", "id", "epoch", "debug", "gc", "v")],
+        *[f"scoreboard objectives add pr.{n} dummy" for n in ("owner", "id", "epoch", "debug", "gc", "remove", "v")],
         "scoreboard objectives add pr.leave minecraft.custom:minecraft.leave_game",
         "scoreboard players add #owner pr.owner 0", "scoreboard players add #epoch pr.epoch 1",
         "team add pr_hidden", "team modify pr_hidden nametagVisibility never", "team modify pr_hidden collisionRule never",
@@ -52,13 +55,21 @@ def lifecycle():
         f"execute unless data {P} active run data modify {P} active set value []",
         f"execute unless data {P} players run data modify {P} players set value []",
         f"execute unless data {P} nextId run data modify {P} nextId set value 1",
-        f"data modify {P} schema set value 1", *kill_all(),
+        f"data modify {P} schema set value 1", *delete_entities(),
     ])
     fn("enable", [f"data modify {D} projection.enabled set value 1b", 'tellraw @s {text:"Stage06 有効: playモードでSpaceLinkへ侵入すると投影します",color:"aqua"}'])
     fn("disable", [f"data modify {D} projection.enabled set value 0b", "function space_editor:projection/clear"])
     fn("clear", [f"data modify {P} active set value []", f"data modify {P} players set value []",
-        "scoreboard players add #epoch pr.epoch 1", *kill_all()])
+        "scoreboard players add #epoch pr.epoch 1", *delete_entities()])
     fn("maintenance", [
+        # Deleting mannequins are detached from projection tags. Two ticks allow
+        # invisibility/equipment packets to arrive, then death happens four ticks
+        # after a same-chunk teleport to an in-bounds disposal height.
+        *[line for dim,y in (("overworld",-63),("the_nether",1),("the_end",1)) for line in (
+            f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=pr.removing,scores={{pr.remove=1..}}] at @s if dimension minecraft:{dim} run scoreboard players remove @s pr.remove 1",
+            f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=pr.removing,scores={{pr.remove=4}}] at @s if dimension minecraft:{dim} run tp @s ~ {y} ~",
+            f"execute in minecraft:{dim} as @e[type=minecraft:mannequin,tag=pr.removing,scores={{pr.remove=..0}}] at @s if dimension minecraft:{dim} run kill @s",
+        )],
         # Also cleans late-loaded entities while disabled, editing, or owners offline.
         *[line for dim in DIMS for typ in ("mannequin", "text_display") for line in (
             f"execute in minecraft:{dim} run scoreboard players add @e[type=minecraft:{typ},tag=space_editor.proxy] pr.gc 0",
@@ -66,18 +77,29 @@ def lifecycle():
             f"execute in minecraft:{dim} as @e[type=minecraft:{typ},tag=space_editor.proxy,scores={{pr.gc=..0}},limit=16] run function space_editor:projection/gc_entity")],
         f"execute if data {D} {{editMode:1b}} run function space_editor:projection/hide_all",
     ])
-    fn("hide_all", kill_all())
+    fn("hide_all", delete_entities())
+    fn("delete/start", [
+        "scoreboard players operation #delete pr.id = @s pr.id",
+        *[f"execute if entity @s[tag={tag}] in minecraft:{dim} as @e[type=minecraft:text_display,tag=space_editor.proxy,tag={tag}] if score @s pr.id = #delete pr.id run kill @s"
+          for tag in ("pr.production", "pr.debug") for dim in DIMS],
+        "tag @s add pr.removing", "tag @s remove space_editor.proxy",
+        "tag @s remove pr.production", "tag @s remove pr.debug", "tag @s remove pr.new",
+        "effect give @s minecraft:invisibility infinite 0 true",
+        *[f"item replace entity @s {slot} with minecraft:air" for slot in ("armor.head","armor.chest","armor.legs","armor.feet","weapon.mainhand","weapon.offhand")],
+        "scoreboard players set @s pr.remove 6",
+    ])
+    fn("delete/self", ["execute if entity @s[type=minecraft:mannequin] run return run function space_editor:projection/delete/start", "kill @s"])
     fn("gc_entity", [
         "scoreboard players set @s pr.gc 40",
-        "execute unless score @s pr.epoch = #epoch pr.epoch run return run kill @s",
-        f"execute unless data {D} projection{{enabled:1b}} run return run kill @s",
+        "execute unless score @s pr.epoch = #epoch pr.epoch run return run function space_editor:projection/delete/self",
+        f"execute unless data {D} projection{{enabled:1b}} run return run function space_editor:projection/delete/self",
         f"execute store result {P} gc.id int 1 run scoreboard players get @s pr.id",
         f"execute store result {P} gc.owner int 1 run scoreboard players get @s pr.owner",
         f"function space_editor:projection/gc_check with {P} gc",
     ])
     fn("gc_check", [
-        f'$execute unless entity @a[scores={{pr.owner=$(owner)}},gamemode=!spectator,nbt={{DeathTime:0s}}] run return run kill @s',
-        f'$execute unless data {P} active[{{id:$(id),owner:$(owner)}}] run kill @s',
+        f'$execute unless entity @a[scores={{pr.owner=$(owner)}},gamemode=!spectator,nbt={{DeathTime:0s}}] run return run function space_editor:projection/delete/self',
+        f'$execute unless data {P} active[{{id:$(id),owner:$(owner)}}] run function space_editor:projection/delete/self',
     ])
     fn("register", [
         "scoreboard players add @s pr.owner 0", "scoreboard players add @s pr.leave 0", "scoreboard players add @s pr.debug 0",
@@ -220,13 +242,20 @@ def routing():
         "scoreboard players operation #offset pr.v = #height pr.v", "scoreboard players operation #offset pr.v += #height pr.v",
         "execute if score #flip pr.v matches 1 run scoreboard players operation #y pr.v -= #offset pr.v",
         f"execute store result {P} render.y double 0.0005 run scoreboard players get #y pr.v",
-        "scoreboard players operation #y pr.v += #offset pr.v", "scoreboard players remove #y pr.v 200",
-        f"execute store result score #gap pr.v run data get {D} projection.labelGap 2", "scoreboard players operation #y pr.v += #gap pr.v",
-        f"execute store result {P} render.nameY double 0.0005 run scoreboard players get #y pr.v",
+        "scoreboard players operation #nameY pr.v = #y pr.v",
+        f"execute store result score #gap pr.v run data get {D} projection.labelGap 2",
+        "execute if score #flip pr.v matches 0 run scoreboard players operation #nameY pr.v += #offset pr.v",
+        "execute if score #flip pr.v matches 0 run scoreboard players remove #nameY pr.v 200",
+        "execute if score #flip pr.v matches 0 run scoreboard players operation #nameY pr.v += #gap pr.v",
+        "execute if score #flip pr.v matches 1 run scoreboard players operation #nameY pr.v -= #gap pr.v",
+        # Rotating text 180 degrees shifts the visible glyph around its baseline.
+        # Move only the inverted formal label 0.1 block back toward the head.
+        "execute if score #flip pr.v matches 1 run scoreboard players add #nameY pr.v 200",
+        f"execute store result {P} render.nameY double 0.0005 run scoreboard players get #nameY pr.v",
     ])
-    fn("remove_render", [f'$execute in minecraft:{dim} run kill @e[type=minecraft:{typ},tag=space_editor.proxy,scores={{pr.id=$(id)}}]' for dim in DIMS for typ in ("mannequin","text_display")])
-    fn("remove_debug", [f'$execute in minecraft:{dim} run kill @e[type=minecraft:{typ},tag=space_editor.proxy,tag=pr.debug,scores={{pr.id=$(id)}}]' for dim in DIMS for typ in ("mannequin","text_display")])
-    fn("remove_owner", [f'$execute in minecraft:{dim} run kill @e[type=minecraft:{typ},tag=space_editor.proxy,scores={{pr.owner=$(id)}}]' for dim in DIMS for typ in ("mannequin","text_display")])
+    fn("remove_render", ["$" + line.replace("]", ",scores={pr.id=$(id)}]", 1) for line in delete_entities()])
+    fn("remove_debug", ["$" + line.replace("]", ",scores={pr.id=$(id)}]", 1) for line in delete_entities(",tag=pr.debug")])
+    fn("remove_owner", ["$" + line.replace("]", ",scores={pr.owner=$(id)}]", 1) for line in delete_entities()])
 
 
 def rendering():
@@ -241,6 +270,8 @@ def rendering():
             f'$execute in $(dimension) unless entity {body} if score #spawn pr.v matches 1.. run function space_editor:projection/spawn_{kind} with {P} render',
             f'$execute in $(dimension) unless entity {body} run return 0',
             f'$execute in $(dimension) unless entity {label} run function space_editor:projection/label_{kind} with {P} render',
+            f'$execute in $(dimension) if data {P} render{{flip:1}} as {label} run data merge entity @s {{transformation:{{left_rotation:[0f,0f,1f,0f]}}}}',
+            f'$execute in $(dimension) if data {P} render{{flip:0}} as {label} run data merge entity @s {{transformation:{{left_rotation:[0f,0f,0f,1f]}}}}',
             f'$execute in $(dimension) as {body} run function space_editor:proxy_spike/set_pose with {P} render',
             f'$execute in $(dimension) if data {P} render{{flip:1}} as {body} unless data entity @s {{CustomName:"Dinnerbone"}} run data modify entity @s CustomName set value "Dinnerbone"',
             f'$execute in $(dimension) if data {P} render{{flip:0}} run data remove entity {body} CustomName',
@@ -261,13 +292,13 @@ def rendering():
         if debug:
             text = '[{selector:"@a[nbt={UUID:$(uuid)}]"},{text:" [G$(groupId) $(entrySourceId)→$(targetId) / #$(id)]",color:"aqua"}]'
         fn("label_"+kind, [
-            f'$execute in $(dimension) positioned 0.0 0.0 0.0 run summon minecraft:text_display ~$(x) ~$(nameY) ~$(z) {{Tags:["space_editor.proxy","{tag}","pr.new"],billboard:"center",background:1073741824,view_range:0.5f,teleport_duration:1,shadow:0b,see_through:0b,text:{text}}}',
+            f'$execute in $(dimension) positioned 0.0 0.0 0.0 run summon minecraft:text_display ~$(x) ~$(nameY) ~$(z) {{Tags:["space_editor.proxy","{tag}","pr.new"],billboard:"center",background:1073741824,view_range:0.5f,teleport_duration:3,shadow:0b,see_through:0b,text:{text}}}',
             f'$execute in $(dimension) run scoreboard players set @e[type=minecraft:text_display,tag=pr.new,limit=1] pr.id $(id)',
             f'$execute in $(dimension) run scoreboard players set {label} pr.owner $(owner)',
             f'$execute in $(dimension) run scoreboard players operation {label} pr.epoch = #epoch pr.epoch',
             f'$execute in $(dimension) run tag {label} remove pr.new',
         ])
-        fn("hide_"+kind, [f'$execute in minecraft:{dim} run kill @e[type=minecraft:{typ},tag=space_editor.proxy,tag={tag},scores={{pr.id=$(id)}}]' for dim in DIMS for typ in ("mannequin","text_display")])
+        fn("hide_"+kind, ["$" + line.replace("]", ",scores={pr.id=$(id)}]", 1) for line in delete_entities(f",tag={tag}")])
     fn("debug_resolve", [
         f"data remove {P} debugMap", f'$data modify {P} debugMap set from {D} projection.debugMaps[{{uuid:$(uuid),targetId:$(targetId)}}]',
         f"execute unless data {P} debugMap.regionId run return run function space_editor:projection/remove_debug with {P} route",
@@ -359,7 +390,7 @@ def transfers():
 def controls():
     fn("debug/on", ["scoreboard players set @s pr.debug 1", 'tellraw @s {text:"Debug ON: debug/mapで投影先に対応するRegionを指定してください",color:"aqua"}'])
     fn("debug/off", ["scoreboard players set @s pr.debug 0", f"execute store result {P} actor.id int 1 run scoreboard players get @s pr.owner", f"function space_editor:projection/debug/clear_owner with {P} actor"])
-    fn("debug/clear_owner", [f'$execute in minecraft:{dim} run kill @e[type=minecraft:{typ},tag=space_editor.proxy,tag=pr.debug,scores={{pr.owner=$(id)}}]' for dim in DIMS for typ in ("mannequin","text_display")])
+    fn("debug/clear_owner", ["$" + line.replace("]", ",scores={pr.owner=$(id)}]", 1) for line in delete_entities(",tag=pr.debug")])
     fn("debug/map", [
         f'$execute unless data {D} regions[{{id:$(target),kind:"space_link"}}] run return 0', f'$execute unless data {D} regions[{{id:$(region)}}] run return 0',
         f'$data modify {P} config set value {{targetId:$(target),regionId:$(region)}}', f"data modify {P} config.uuid set from entity @s UUID",

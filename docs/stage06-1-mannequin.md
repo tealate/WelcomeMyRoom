@@ -58,21 +58,23 @@ Mannequinのdescriptionはselectorをユーザー名に解決しないため、t
 ```mcfunction
 /function space_editor:proxy_spike/offset {x:0,y:0,z:3}
 /function space_editor:proxy_spike/flip_height {fy:0.0}
-/function space_editor:proxy_spike/label_height {normal:2.1,inverted:2.1}
+/function space_editor:proxy_spike/label_height {normal:2.1,inverted:-0.3}
 /function space_editor:proxy_spike/label_style {scale:1.0,background:1073741824}
 ```
 
 - `offset`: 本人からの固定ワールド座標差。比較体はさらにX+2。各値はブロック単位、±16へ制限し1/1000単位で保存。
 - `flip_height`: 反転中の主役だけYへ加算する観察用補正。**座標のFlipYとは別**。既定0。
-- `label_height`: 各本体の足元からのUI高さ。既定は両方2.1で、反転しても身体の上に名前を保つ。反転した頭の近くを比較するなら `inverted:0.7` 等を指定。
+- `label_height`: 各本体座標からのUI高さ。通常は2.1、反転時は実機確認値-0.3で頭の下へ置く。
 - ラベルは本体poseに応じ、通常高さからしゃがみ0.3、水泳／滑空1.2、睡眠1.6を引く。これらは未実測の調整用初期値。
-- `label_style`: 文字倍率0.1〜3.0のみ受理。背景は符号付きARGB整数（1073741824 = 0x40000000、0なら透明）。billboard:center、影なし、遮蔽あり、位置補間1tick。
+- `label_style`: 文字倍率0.1〜3.0のみ受理。背景は符号付きARGB整数（1073741824 = 0x40000000、0なら透明）。billboard:center、影なし、遮蔽あり、位置補間3tick。反転時は文字もZ軸180度回転し、解除時は同じDisplayを単位回転へ戻す。
 - オフセット・反転Y補正は次の追従tickから反映。follow_off中は位置を固定。名前方式、高さ、反転名称は停止中も変更可能。
 
 ### 後片付けと復帰
 
 `follow_off` は観察用にEntityを残す一時停止です。**終了には `stop`** を使います。
 `/reload` / `clear_all` は全検証Entityを回収し追従停止。復帰は `start` / `spawn`。
+
+削除時は本体を同期対象から外し、透明化・装備除去・名前Display削除を行います。2tick後に同じロード済みチャンクのDimension内低高度（Overworld -63、Nether/End 1）へTPし、さらに4tick後にkillします。待機中は `sp.removing` で管理され、再追従・名前再生成の対象になりません。この方式で元位置の死亡演出が消えるかはクライアントで **UNVERIFIED** です。
 
 退出した本人のEntityは次tickで回収します。退出時にチャンクが未ロードでも、再ログイン時のleave_game統計差分で古いセッションを無効化します。
 生成世代IDを再利用せず、reload世代も別管理します。未ロード中に停止／再生成された古いEntityは再ロード時に回収します。
@@ -104,7 +106,7 @@ PASSは確認方法に記した範囲のみ。描画全体のPASSではありま
 
 | 項目 | 結果 | 確認方法 | 制限 |
 | --- | --- | --- | --- |
-| 生成・停止・所有者別削除 | PASS | 公式26.1 GameTestで2名の異なるUUIDと削除範囲を検査 | 消失の描画タイミングは未確認 |
+| 生成・停止・所有者別削除 | PARTIAL | 公式26.1 GameTestで2名の異なるUUID、削除範囲、不可視効果・装備除去・2+4tick待機・残留なしを検査 | 死亡モーションと白粒子が見えないかはUNVERIFIED |
 | スキン | PARTIAL | profile.idと本人UUIDの完全一致 | スキン表示はUNVERIFIED。取得不能なら標準スキン |
 | 座標・Yaw/Pitch・頭Yaw | PASS | 固定オフセット、Y移動、±180度越えのYawを数値比較 | 独立したbodyYawの完全コピー・描画補間は未確認 |
 | 歩行・走行アニメーション | UNVERIFIED | 実機手順5 | TP移動からバニラ側が演算。座標成功で代替しない |
@@ -114,7 +116,7 @@ PASSは確認方法に記した範囲のみ。描画全体のPASSではありま
 | 装備 | PARTIAL | 防具4部位・両手・空スロットに戻す更新を検査 | 食事・弓引き・盾使用の進行、主利き手は同期しない |
 | Dinnerbone反転 | UNVERIFIED | トリガー文字列・Grumm切替を検査、client jarの反転条件を調査 | モデル・スキン・装備・アニメの実描画は未確認 |
 | Dinnerbone非表示 | PARTIAL | Team所属とCustomNameVisible、反転用名称の維持を検査 | 実描画はUNVERIFIED。旧レポートのCustomNameVisible単独で文字が見えた記録は今回未追試 |
-| 元プレイヤー名 | PARTIAL | ProxyOne/ProxyTwoを文字列完全一致で比較、両体のラベル確認 | 標準ネームタグとの外見的一致は未確認 |
+| 元プレイヤー名 | PARTIAL | ProxyOne/ProxyTwoを文字列完全一致、3tick補間、通常単位回転、反転180度回転、反転解除、UUID再利用、高さを検査 | 標準ネームタグとの外見的一致は未確認 |
 | description比較 | PARTIAL | 解決済みユーザー名を実データで検査 | 説明行は名前とは別位置。Dinnerboneの置換にはならない |
 | ラベル再利用・姿勢追従 | PASS | モード変更でUUID維持、姿勢別高さ、欠損修復を検査 | ちらつきの目視は未確認 |
 | 非干渉化 | PARTIAL | NBT、6実tickの停止、通常ダメージ拒否、削除後22tickで装備ドロップなし | collisionRule never設定済み。当たり判定・照準選択・重なりを完全には消さない |
@@ -138,7 +140,7 @@ poseは変化時のみ書き、装備同期後にTPして、NBT再読込が頭�
 本物のプレイヤー名との主な差・未確認点は次のとおりです。
 
 - しゃがみ時の半透明化、壁越し表示、32/64ブロックの標準距離ルールを厳密に再現していない。
-- 本体とラベルは別パケットで動くため、補間・遅延・ちらつきの完全一致は保証しない。
+- 本体とラベルは別パケットで動くため、実機確認値3tickを設定しても全pose・負荷時の一致は保証しない。
 - 生成時にselectorで解決した名前を保持。後から本人のTeam色・prefixを変えた場合は再生成で取り直す。
 - 名前の高さは未実測の初期値。反転した頭の近くと身体の上のUI位置は別々に選べる。
 
@@ -171,11 +173,11 @@ Javaハーネスは開発用のみで、実ワールドにJavaコード／Modを
 
 隔離worldはbuild/test-server/run-stage6_1-*、ログとXMLはbuild/test-server/stage6_1-*です。
 ValidateMinecraftのマクロ代表値による構文確認に加え、GameTestで実値を確認します。
-今回の構文検証は4,445件・エラー0、06-1と05はともに明示PASS・終了コード0です。
+今回の構文検証は5,721件・エラー0、06-1・正式06・05はいずれも明示PASS・終了コード0です。
 今回も隔離テスト終了時にWindowsのworld rename警告が出ています。明示PASS・終了コード0を確認済みで、実ワールドは使用していません。
 
 計測は専用tickのみ、warmup20回＋100回、コマンド実行枠と壁時計で測定。
-最終計測（run-stage6_1-df576e5e75ad44e3bf69af1f6c1f0ceb）では、1体: **129枠、中央値0.919ms、p95 1.794ms**、2体: **134枠、中央値0.657ms、p95 0.975ms**。
+最終計測（run-stage6_1-22a9c2c1eaa04ed79a1475dbde1a733c）では、1体: **171枠、中央値0.876ms、p95 2.392ms**、2体: **177枠、中央値0.547ms、p95 0.868ms**。
 クライアント描画・通信・サーバー全tickの値ではなく、JIT/GCの影響で2体の値が短くなることもあります。
 上限は65536のまま。GameTestでは専用tickが1000枠未満であることも確認しています。
 
