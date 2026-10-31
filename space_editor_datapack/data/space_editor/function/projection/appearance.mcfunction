@@ -1,0 +1,5 @@
+data modify storage space_editor:projection pose set value "standing"
+execute if predicate space_editor:proxy_spike/crouching run data modify storage space_editor:projection pose set value "crouching"
+execute if predicate space_editor:proxy_spike/swimming run data modify storage space_editor:projection pose set value "swimming"
+execute if predicate space_editor:proxy_spike/fall_flying run data modify storage space_editor:projection pose set value "fall_flying"
+execute if data entity @s sleeping_pos run data modify storage space_editor:projection pose set value "sleeping"

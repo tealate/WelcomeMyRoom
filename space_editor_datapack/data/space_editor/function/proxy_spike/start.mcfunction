@@ -1,0 +1,1 @@
+function space_editor:proxy_spike/pair

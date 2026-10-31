@@ -9,6 +9,8 @@ data modify storage space_editor:runtime transfers set value []
 execute as @a at @s run function space_editor:teleport/snapshot
 execute if data storage space_editor:document {editMode:1b} run return 0
 execute as @a[gamemode=!spectator] at @s run function space_editor:link/player
+function space_editor:projection/before
 function #space_editor:before_teleport
 execute as @a[gamemode=!spectator] at @s run function space_editor:teleport/player
+function space_editor:projection/after
 function #space_editor:after_teleport

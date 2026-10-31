@@ -1,7 +1,16 @@
 {
   "variants": {
-    "": {
+    "facing=north": {
       "model": "editor:block/selection"
+    },
+    "facing=east": {
+      "model": "editor:block/frame_teleport"
+    },
+    "facing=south": {
+      "model": "editor:block/frame_space_link"
+    },
+    "facing=west": {
+      "model": "editor:block/frame_proxy_existence"
     }
   }
 }

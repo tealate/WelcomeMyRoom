@@ -91,6 +91,22 @@ the foot point against half-open AABB boundaries. It does not cast an editor ray
 
 ## Pair APIs and transactions
 
+### 編集棒と箱の色
+
+両方向TP接続棒は水色の門、一方向TP接続棒は水色の矢印です。後者は選択したRegionをA、配置先をBとしてA→Bだけ通れます。
+SpaceLink接続棒はエメラルド色の連結形、Proxy存在範囲棒は黄色の立体枠です。
+対応するRegionの箱も棒と同じテクスチャを使った12辺の枠で表示します。
+TPは水色、SpaceLinkは緑、Proxy存在範囲は黄色、通常Regionは従来のシアンです。
+配置プレビュー・確定後・選択解除・編集再描画でも種類の色を保持します。
+前／上の方向矢印は従来どおり緑／黄色です。
+
+反映は `/reload` と `F3+T`。`/function space_editor:start` で2種類のTP棒を支給します。
+従来のTP棒は両方向として使えます。`start` 実行時は旧名称の棒を「両方向TP接続棒」に更新します。
+棒を切り替えると未確定の配置は取り消され、既存ペアの方向は変わりません。
+リソースパックはtestpackを優先してください。
+箱は既存selection用キャリアのfacing別モデルを使用し、Regionの保存座標・回転には影響しません。
+自動試験は配置／確定／選択と解除のブロック状態を検証し、実際の描画はクライアントで確認します。
+
 - `pair/create {source:ID,kind:"teleport"}` or `kind:"space_link"` uses the
   prepared `pairCandidate` Region. Both records validate and local sizes must
   match before mutation. `#pair_ok se.v` is 1 only after a successful commit.
@@ -129,8 +145,8 @@ No PNG changes are part of this implementation. Existing authored Mask and
 selection-candidate textures remain intact. The following ten JSON files are
 new in **each** of `assets/editor/` and `space_editor_resources/assets/editor/`:
 
-- `items/tool_teleport.json`, `items/tool_space_link.json`, `items/tool_proxy_existence.json`
-- `models/item/tool_teleport.json`, `models/item/tool_space_link.json`, `models/item/tool_proxy_existence.json`
+- `items/tool_teleport.json`, `items/tool_teleport_one_way.json`, `items/tool_space_link.json`, `items/tool_proxy_existence.json`
+- `models/item/tool_teleport.json`, `models/item/tool_teleport_one_way.json`, `models/item/tool_space_link.json`, `models/item/tool_proxy_existence.json`
 - `items/direction_front.json`, `items/direction_up.json`
 - `models/item/direction_front.json`, `models/item/direction_up.json`
 

@@ -1,0 +1,2 @@
+function space_editor:proxy_spike/select
+function space_editor:proxy_spike/update_selected

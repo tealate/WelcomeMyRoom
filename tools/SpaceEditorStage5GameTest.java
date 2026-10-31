@@ -174,6 +174,9 @@ public class SpaceEditorStage5GameTest {
     }
     static void uiTests(){
         pcmd("function space_editor:start");
+        pcmd("execute store success storage space_editor:runtime testBothWand byte 1 if items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"teleport\"}},minecraft:item_model=\"editor:tool_teleport\"]");
+        pcmd("execute store success storage space_editor:runtime testOneWayWand byte 1 if items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"teleport_one_way\"}},minecraft:item_model=\"editor:tool_teleport_one_way\"]");
+        check(runtime().getBooleanOr("testBothWand",false) && runtime().getBooleanOr("testOneWayWand",false),"start gives both TP wands with distinct models");
         player.setPos(.5,82,-2.5);player.setYRot(0);player.setXRot(0);
         int a=plain();
         pcmd("function space_editor:pair/held_teleport");
@@ -187,6 +190,7 @@ public class SpaceEditorStage5GameTest {
         java.util.UUID preview=null;
         while(entity.hasNext()){var e=entity.next();if(e.entityTags().contains("space_editor.pair_pending_box"))preview=e.getUUID();}
         check(preview!=null,"placement preview spawned");
+        frameColor("tag=space_editor.pair_pending_box", "east");
         int arrows=0;for(var e:helper.getLevel().getAllEntities())if(e.entityTags().contains("space_editor.pending_arrow_front") || e.entityTags().contains("space_editor.pending_arrow_up"))arrows++;
         check(arrows==2,"both 3D orientation arrows spawned");
         pcmd("execute as @e[tag=space_editor.pending_arrow_front,limit=1] run data modify storage space_editor:runtime testArrow set from entity @s transformation.left_rotation");
@@ -198,10 +202,46 @@ public class SpaceEditorStage5GameTest {
         check(same,"placement preview reuses entity");
         pcmd("function space_editor:pair/confirm");
         check(region(a).contains("pairId") && !runtime().contains("pairPending"),"second click commits pair and clears preview");
+        int bothPairId=region(a).getIntOr("pairId",0);
+        cmd("data modify storage space_editor:runtime testBothPair set from storage space_editor:document regionPairs[{id:"+bothPairId+"}]");
+        check(runtime().getCompoundOrEmpty("testBothPair").getStringOr("direction","").equals("both"),"bidirectional wand saves both directions");
         int b=region(a).getIntOr("partnerId",0);
         check(region(b).getIntOr("rotationY",0)==90 && region(b).getBooleanOr("flipY",false),"preview pose persisted");
+        frameColor("tag=space_editor.region,scores={se.id="+a+"}", "east");
+        frameColor("tag=space_editor.region,scores={se.id="+b+"}", "east");
+        int oneWay=plain();
+        pcmd("function space_editor:pair/held_teleport_one_way");
+        select(oneWay,"pair_select",0);pcmd("function space_editor:pair/select");
+        check(runtime().getCompoundOrEmpty("pairPending").getStringOr("direction","").equals("one_way"),"one-way wand stages A to B");
+        pcmd("function space_editor:pair/confirm");
+        int oneWayPairId=region(oneWay).getIntOr("pairId",0);
+        cmd("data modify storage space_editor:runtime testOneWayPair set from storage space_editor:document regionPairs[{id:"+oneWayPairId+"}]");
+        check(runtime().getCompoundOrEmpty("testOneWayPair").getStringOr("direction","").equals("one_way"),"one-way wand saves one-way pair");
+        pcmd("function space_editor:pair/held_teleport");
+        check(runtime().getCompoundOrEmpty("pairSession").getStringOr("direction","").equals("both"),"switching wands resets editing direction");
+        cmd("data modify storage space_editor:runtime testOneWayPair set from storage space_editor:document regionPairs[{id:"+oneWayPairId+"}]");
+        check(runtime().getCompoundOrEmpty("testOneWayPair").getStringOr("direction","").equals("one_way"),"switching wands preserves saved pair");
+        int unconfirmed=plain();select(unconfirmed,"pair_select",0);pcmd("function space_editor:pair/select");
+        check(runtime().contains("pairPending"),"bidirectional placement is pending");
+        pcmd("function space_editor:pair/held_teleport_one_way");
+        check(!runtime().contains("pairPending") && runtime().getCompoundOrEmpty("pairSession").getStringOr("direction","").equals("one_way"),"switching direction cancels unconfirmed placement");
+        cmd("function space_editor:preview/highlight {id:"+a+",dimension:\"minecraft:overworld\"}");
+        frameColor("tag=space_editor.region,scores={se.id="+a+"}", "east");
+        cmd("function space_editor:preview/clear_highlight {id:"+a+",dimension:\"minecraft:overworld\"}");
+        frameColor("tag=space_editor.region,scores={se.id="+a+"}", "east");
+        int link=pair("space_link");
+        cmd("function space_editor:space_group/load");cmd("function space_editor:preview/resync");
+        frameColor("tag=space_editor.region,scores={se.id="+link+"}", "south");
+        int existence=plain();select(existence,"pair_select",0);pcmd("function space_editor:pair/mark_existence");
+        frameColor("tag=space_editor.region,scores={se.id="+existence+"}", "west");
         pcmd("function space_editor:play");
         for(var e:helper.getLevel().getAllEntities())check(!e.entityTags().contains("space_editor.preview"),"play hides every edit indicator");
+    }
+    static void frameColor(String selector,String facing){
+        cmd("data remove storage space_editor:runtime testFrameColor");
+        cmd("data modify storage space_editor:runtime testFrameColor set from entity @e[type=minecraft:block_display,"+selector+",limit=1] block_state");
+        var block=runtime().getCompoundOrEmpty("testFrameColor");
+        check(block.getStringOr("Name","").equals("minecraft:magenta_glazed_terracotta")&&block.getCompoundOrEmpty("Properties").getStringOr("facing","").equals(facing),"Region type color survives creation/highlight/restore: "+selector);
     }
     static void config(int regionId,int group){
         cmd("function space_editor:pair/configure {id:"+region(regionId).getIntOr("pairId",region(regionId).getIntOr("legacyPairId",0))+",groupId:"+group+",roomA:\"room_a\",roomB:\"room_b\",direction:\"both\",cooldownTicks:20}");
@@ -250,6 +290,12 @@ public class SpaceEditorStage5GameTest {
         player.setPos(40.5,80.5,1.5);snapshot();pcmd("function space_editor:teleport/player");
         player.setPos(22.5,83.5,1.5);snapshot();pcmd("function space_editor:teleport/player");
         near(player.getX(),.5,"reverse after exit/re-entry x");near(player.getY(),80.5,"reverse y");near(player.getYRot(),15,"reverse yaw");
+        int tpPairId=region(tp).getIntOr("pairId",0);
+        cmd("data modify storage space_editor:document regionPairs[{id:"+tpPairId+"}].direction set value \"one_way\"");
+        player.setPos(22.5,83.5,1.5);pcmd("scoreboard players set @s se.tp_cd 0");pcmd("scoreboard players set @s se.tp_lock 0");
+        snapshot();pcmd("function space_editor:teleport/player");near(player.getX(),22.5,"one-way B entrance cannot return to A");
+        cmd("data modify storage space_editor:document regionPairs[{id:"+tpPairId+"}].direction set value \"both\"");
+        player.setPos(.5,80.5,1.5);
         pcmd("scoreboard players set @s se.tp_cd 0");pcmd("scoreboard players set @s se.tp_lock 0");
         cmd("setblock 22 84 1 stone");snapshot();pcmd("function space_editor:teleport/player");
         near(player.getX(),.5,"obstructed arrival refuses TP");cmd("setblock 22 84 1 air");
@@ -686,9 +732,41 @@ public class SpaceEditorStage5GameTest {
             if(i==2 || i==3)check(actual.getFluidState().isSource(),"bucket fills place fluid sources");
             if(i==1)check(runtime().getStringOr("fillBlock","").equals("minecraft:air"),"empty offhand clears preceding material");
         }
+        String[] woods={"oak","spruce","birch","jungle","acacia","dark_oak","mangrove","cherry","pale_oak"};
+        java.util.ArrayList<String> axisBlocks=new java.util.ArrayList<>();
+        for(String wood:woods)for(String suffix:new String[]{"_log","_wood"}){
+            axisBlocks.add(wood+suffix);axisBlocks.add("stripped_"+wood+suffix);
+        }
+        for(String fungus:new String[]{"crimson","warped"})for(String suffix:new String[]{"_stem","_hyphae"}){
+            axisBlocks.add(fungus+suffix);axisBlocks.add("stripped_"+fungus+suffix);
+        }
+        axisBlocks.addAll(java.util.List.of("bamboo_block","stripped_bamboo_block","hay_block","bone_block","quartz_pillar","purpur_pillar","basalt","polished_basalt","deepslate"));
+        for(String name:axisBlocks){
+            var block=net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(Identifier.parse("minecraft:"+name));
+            check(block.getStateDefinition().getProperty("axis")!=null,"configured fill block has axis state: "+name);
+        }
+        cmd("data modify storage space_editor:document regions set value []");
+        double[][] positions={{6.5,79,8.5},{10.5,79,8.5},{8.5,77,8.5},{8.5,82,8.5},{8.5,79,6.5},{8.5,79,10.5}};
+        float[] yaw={-90,90,0,0,0,180},pitch={0,0,-90,90,0,0};
+        String[] axis={"x","x","y","y","z","z"};
+        String[] directionalBlocks={"oak_log","oak_wood","warped_stem","oak_log","bamboo_block","quartz_pillar"};
+        for(int face=0;face<6;face++){
+            int id=9100+face;box(id,8000,80000,8000,9000,81000,9000);
+            cmd("setblock 8 80 8 minecraft:stone");
+            cmd("data modify storage space_editor:runtime hover set value {dimension:\"minecraft:overworld\",pos:[I;8,80,8],x:8,y:80,z:8}");
+            pcmd("item replace entity @s weapon.offhand with minecraft:"+directionalBlocks[face]);
+            player.setPos(positions[face][0],positions[face][1],positions[face][2]);player.setYRot(yaw[face]);player.setXRot(pitch[face]);
+            pcmd("function space_editor:input/fill");
+            var state=helper.getLevel().getBlockState(new net.minecraft.core.BlockPos(8,80,8));
+            var expectedBlock=net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(Identifier.parse("minecraft:"+directionalBlocks[face]));
+            check(state.is(expectedBlock) && state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS)==net.minecraft.core.Direction.Axis.valueOf(axis[face].toUpperCase()),"Fill axis follows touched face "+face+" for "+directionalBlocks[face]);
+            check(regions().stream().noneMatch(v->((CompoundTag)v).getIntOr("id",0)==id),"directional fill removes only completed Region "+face);
+            for(var e:helper.getLevel().getAllEntities())check(!e.entityTags().contains("space_editor.ray_probe"),"directional fill cleans ray probe");
+        }
+        player.setPos(.5,82,-2.5);player.setYRot(0);player.setXRot(0);
         pcmd("item replace entity @s weapon.offhand with minecraft:air");
         cmd("setblock 8 80 8 minecraft:air");
-        System.out.println("SPACE_EDITOR_FILL_OFFHAND_PASS: empty=air, water/lava buckets=source fluids, ordinary block unchanged, unsupported bucket preserves Region");
+        System.out.println("SPACE_EDITOR_FILL_OFFHAND_PASS: empty=air, water/lava buckets=source fluids, ordinary block unchanged, unsupported bucket preserves Region, axis blocks from all six touched faces");
     }
     static void test(GameTestHelper h){
         helper=h;source=h.getLevel().getServer().createCommandSourceStack();

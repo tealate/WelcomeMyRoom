@@ -12,5 +12,6 @@ execute if data storage space_editor:runtime hit.pairId run return run tellraw @
 data modify storage space_editor:runtime pairPending set value {}
 data modify storage space_editor:runtime pairPending.source set from storage space_editor:runtime hit.id
 data modify storage space_editor:runtime pairPending.kind set from storage space_editor:runtime pairSession.kind
+execute if data storage space_editor:runtime pairSession.direction run data modify storage space_editor:runtime pairPending.direction set from storage space_editor:runtime pairSession.direction
 data modify storage space_editor:runtime pairPending.frame set from storage space_editor:runtime frame
 function space_editor:pair/track
