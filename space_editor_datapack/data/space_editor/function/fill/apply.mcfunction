@@ -4,6 +4,7 @@ execute store result score #aligned se.v run function space_editor:operation/che
 execute unless score #aligned se.v matches 1 run return run tellraw @s {"text": "[Space Editor] Fillはブロック境界に揃ったRegionだけ使用できます。", "color": "red"}
 data modify storage space_editor:runtime fill set from storage space_editor:runtime hit
 data modify storage space_editor:runtime fill.block set from storage space_editor:runtime fillBlock
+function space_editor:fill/orient
 execute store result storage space_editor:runtime fill.x1 int 1 run scoreboard players get #x1 se.v
 execute store result storage space_editor:runtime fill.y1 int 1 run scoreboard players get #y1 se.v
 execute store result storage space_editor:runtime fill.z1 int 1 run scoreboard players get #z1 se.v

@@ -9,6 +9,7 @@ execute if data storage space_editor:runtime editA.pairId run return run tellraw
 execute if data storage space_editor:runtime editA{kind:"proxy_existence"} run return 0
 $data modify storage space_editor:runtime pair set value {id:0,a:$(source),b:0,kind:"$(kind)",localSize:[I;0,0,0],groupId:0,roomA:"",roomB:"",direction:"both",cooldownTicks:20}
 execute unless data storage space_editor:runtime pair{kind:"teleport"} unless data storage space_editor:runtime pair{kind:"space_link"} run return 0
+$execute if data storage space_editor:runtime pairPending{source:$(source),kind:"teleport",direction:"one_way"} run data modify storage space_editor:runtime pair.direction set value "one_way"
 data modify storage space_editor:runtime frame set from storage space_editor:runtime editA
 function space_editor:pair/frame
 execute unless score #frame_ok se.v matches 1 run return 0

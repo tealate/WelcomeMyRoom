@@ -203,6 +203,7 @@ def generate_pairs() -> None:
         f'execute if data {R} editA{{kind:"proxy_existence"}} run return 0',
         f'$data modify {R} pair set value {{id:0,a:$(source),b:0,kind:"$(kind)",localSize:[I;0,0,0],groupId:0,roomA:"",roomB:"",direction:"both",cooldownTicks:20}}',
         f'execute unless data {R} pair{{kind:"teleport"}} unless data {R} pair{{kind:"space_link"}} run return 0',
+        f'$execute if data {R} pairPending{{source:$(source),kind:"teleport",direction:"one_way"}} run data modify {R} pair.direction set value "one_way"',
         f"data modify {R} frame set from {R} editA", "function space_editor:pair/frame",
         "execute unless score #frame_ok se.v matches 1 run return 0",
         f"data modify {R} editA set from {R} frame",
@@ -373,26 +374,36 @@ def generate_pair_ui() -> None:
         "scoreboard objectives add se.pheld dummy", "scoreboard objectives add se.pbase dummy",
         "scoreboard objectives add se.prot dummy", "scoreboard objectives add se.pflip dummy",
     ])
-    for kind, name, color in (("teleport", "TP接続棒", "aqua"), ("space_link", "SpaceLink接続棒", "green"),
-                              ("proxy_existence", "Proxy存在範囲棒", "yellow")):
+    # Upgrade the previously issued generic TP wand to its explicit both-way name.
+    append(F / "start.mcfunction", [
+        'clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"teleport"}},minecraft:custom_name={text:"TP接続棒",color:"aqua",italic:false}]',
+    ])
+    for tool, kind, direction, name, color in (
+        ("teleport", "teleport", "both", "両方向TP接続棒", "aqua"),
+        ("teleport_one_way", "teleport", "one_way", "一方向TP接続棒 A→B", "aqua"),
+        ("space_link", "space_link", None, "SpaceLink接続棒", "green"),
+        ("proxy_existence", "proxy_existence", None, "Proxy存在範囲棒", "yellow"),
+    ):
         append(F / "start.mcfunction", [
-            f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{kind}"}}}},minecraft:item_model="editor:tool_{kind}"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{kind}"}}}}]',
-            f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{kind}"}}}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={{space_editor:{{tool:"{kind}"}}}},minecraft:item_model="editor:tool_{kind}",minecraft:custom_name={{text:"{name}",color:"{color}",italic:false}},minecraft:lore=[{{text:"右クリック: 対象選択 / 配置確定",italic:false}},{{text:"Shift+右クリック: 基準Yawの左右で回転・上下でFlipY",italic:false}}]]',
+            f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}},minecraft:item_model="editor:tool_{tool}"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}}]',
+            f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={{space_editor:{{tool:"{tool}"}}}},minecraft:item_model="editor:tool_{tool}",minecraft:custom_name={{text:"{name}",color:"{color}",italic:false}},minecraft:lore=[{{text:"右クリック: 対象選択 / 配置確定",italic:false}},{{text:"Shift+右クリック: 基準Yawの左右で回転・上下でFlipY",italic:false}}]]',
         ])
         insert_before(F / "tick.mcfunction", "scoreboard players set @a[scores={se.use=1..}]", [
-            f'execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{kind}"}}}}] run function space_editor:pair/held_{kind}',
-            f'execute as @a[tag=space_editor.editing,scores={{se.use=1..,se.cd=0}}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{kind}"}}}}] run function space_editor:pair/click',
+            f'execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}}] run function space_editor:pair/held_{tool}',
+            f'execute as @a[tag=space_editor.editing,scores={{se.use=1..,se.cd=0}}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}}] run function space_editor:pair/click',
         ])
-        fn(f"pair/held_{kind}", [
+        fn(f"pair/held_{tool}", [
             f'execute if data {R} pairSession unless data {R} pairSession{{kind:"{kind}"}} run function space_editor:pair/cancel',
+            *([f'execute if data {R} pairSession unless data {R} pairSession{{direction:"{direction}"}} run function space_editor:pair/cancel'] if direction else []),
             "execute unless score @s se.pheld matches 1 run function space_editor:pair/begin_session",
             f'data modify {R} pairSession.kind set value "{kind}"',
+            *([f'data modify {R} pairSession.direction set value "{direction}"'] if direction else []),
             "function space_editor:pair/read_intent",
             f'execute if data {R} pairPending run function space_editor:pair/track',
             f'execute if data {R} pairSession.selected run title @s actionbar [{{text:"Pair編集: ",color:"aqua"}},{{nbt:"pairSession.kind",storage:"space_editor:runtime"}},{{text:" Region #"}},{{nbt:"pairSession.selected",storage:"space_editor:runtime"}},{{text:" Rot="}},{{score:{{name:"@s",objective:"se.prot"}}}},{{text:" FlipY="}},{{score:{{name:"@s",objective:"se.pflip"}}}}]',
         ])
     insert_before(F / "tick.mcfunction", "scoreboard players set #selection_cursor_active", [
-        'execute as @a[scores={se.pheld=1}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"teleport"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"space_link"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"proxy_existence"}}] run function space_editor:pair/cancel',
+        'execute as @a[scores={se.pheld=1}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"teleport"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"teleport_one_way"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"space_link"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"proxy_existence"}}] run function space_editor:pair/cancel',
     ])
     fn("pair/begin_session", [
         "execute store result score @s se.pbase run data get entity @s Rotation[0] 1",
@@ -441,6 +452,7 @@ def generate_pair_ui() -> None:
         f'data modify {R} pairPending set value {{}}',
         f'data modify {R} pairPending.source set from {R} hit.id',
         f'data modify {R} pairPending.kind set from {R} pairSession.kind',
+        f'execute if data {R} pairSession.direction run data modify {R} pairPending.direction set from {R} pairSession.direction',
         f'data modify {R} pairPending.frame set from {R} frame',
         "function space_editor:pair/track",
     ])

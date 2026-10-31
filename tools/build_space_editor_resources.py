@@ -35,6 +35,7 @@ TOOL_MODELS = {
     "fill": "minecraft:block/gold_block",
     "mask": "minecraft:block/pink_concrete",
     "teleport": "minecraft:block/light_blue_concrete",
+    "teleport_one_way": "minecraft:block/light_blue_concrete",
     "space_link": "minecraft:block/emerald_block",
     "proxy_existence": "minecraft:block/yellow_concrete",
 }
@@ -201,6 +202,12 @@ def _tool_model(name: str, accent: str) -> dict:
     elif name == "teleport":
         elements += [_tool_box([3, 8, 6], [5, 16, 10]), _tool_box([11, 8, 6], [13, 16, 10]),
                      _tool_box([5, 14, 6], [11, 16, 10]), _tool_box([6, 10, 7], [10, 12, 9], "#detail")]
+    elif name == "teleport_one_way":
+        # A single arrow head makes A -> B distinct from the two-post gate.
+        elements += [_tool_box([7, 9, 7], [9, 13, 9]),
+                     _tool_box([4, 12, 7], [12, 14, 9]),
+                     _tool_box([6, 14, 7], [10, 16, 9]),
+                     _tool_box([7, 10, 6], [9, 12, 7], "#detail")]
     elif name == "space_link":
         for x, y, z in ((2, 9, 6), (7, 11, 8)):
             elements += [_tool_box([x,y,z], [x+2,y+5,z+2]), _tool_box([x+4,y,z], [x+6,y+5,z+2]),

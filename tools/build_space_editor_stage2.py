@@ -171,6 +171,7 @@ def main() -> None:
         "execute unless score #aligned se.v matches 1 run return run " + message("Fillはブロック境界に揃ったRegionだけ使用できます。", "red"),
         "data modify storage space_editor:runtime fill set from storage space_editor:runtime hit",
         "data modify storage space_editor:runtime fill.block set from storage space_editor:runtime fillBlock",
+        "function space_editor:fill/orient",
         *[f"execute store result storage space_editor:runtime fill.{axis}1 int 1 run scoreboard players get #{axis}1 se.v" for axis in "xyz"],
         *[f"scoreboard players remove #{axis}2 se.v 1" for axis in "xyz"],
         *[f"execute store result storage space_editor:runtime fill.{axis}2 int 1 run scoreboard players get #{axis}2 se.v" for axis in "xyz"],
@@ -184,6 +185,60 @@ def main() -> None:
         message("Fill完了。Fill専用RegionをDocumentと表示から削除しました。", "green"),
     ])
     fn("fill/run", ['$return run execute in $(dimension) run fill $(x1) $(y1) $(z1) $(x2) $(y2) $(z2) $(block) replace'])
+
+    # /fill does not infer placement state from the player's click. For blocks
+    # with an axis property, derive it from the face of the selected Region.
+    woods = ("oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry", "pale_oak")
+    axis_blocks = [name for wood in woods for name in
+                   (f"{wood}_log", f"{wood}_wood", f"stripped_{wood}_log", f"stripped_{wood}_wood")]
+    axis_blocks += [name for fungus in ("crimson", "warped") for name in
+                    (f"{fungus}_stem", f"{fungus}_hyphae", f"stripped_{fungus}_stem", f"stripped_{fungus}_hyphae")]
+    axis_blocks += ["bamboo_block", "stripped_bamboo_block", "hay_block", "bone_block",
+                    "quartz_pillar", "purpur_pillar", "basalt", "polished_basalt", "deepslate"]
+    fn("fill/orient", [
+        "scoreboard players set #fill_axis se.v 0",
+        *[f'execute if data storage space_editor:runtime {{fillBlock:"minecraft:{name}"}} run scoreboard players set #fill_axis se.v 1' for name in axis_blocks],
+        "execute unless score #fill_axis se.v matches 1 run return 0",
+        "execute if entity @s[type=minecraft:player] anchored eyes positioned ^ ^ ^ run function space_editor:fill/face_from_ray",
+        *[f'execute if data storage space_editor:runtime {{hitFace:{face}}} run data modify storage space_editor:runtime fill.axis set value "{axis}"'
+          for face, axis in enumerate(("x", "x", "y", "y", "z", "z"))],
+        "function space_editor:fill/orient_axis with storage space_editor:runtime fill",
+    ])
+    fn("fill/orient_axis", ['$data modify storage space_editor:runtime fill.block set value "$(block)[axis=$(axis)]"'])
+    # Keep the existing hover-selected Region. Probe only that Region's entry
+    # point along the player's view ray, so thin Regions use the touched face.
+    face_ray = [
+        'summon minecraft:marker ~ ~ ~ {Tags:["space_editor.ray_probe"]}',
+        'data modify storage space_editor:runtime rayPos set from entity @e[type=minecraft:marker,tag=space_editor.ray_probe,limit=1] Pos',
+    ]
+    for i, axis in enumerate("xyz"):
+        face_ray += [f'execute store result score #ray_origin_{axis} se.v run data get storage space_editor:runtime rayPos[{i}] 1000']
+    face_ray += [
+        'execute positioned ^ ^ ^12.8 run tp @e[type=minecraft:marker,tag=space_editor.ray_probe,limit=1] ~ ~ ~',
+        'data modify storage space_editor:runtime rayPos set from entity @e[type=minecraft:marker,tag=space_editor.ray_probe,limit=1] Pos',
+    ]
+    for i, axis in enumerate("xyz"):
+        face_ray += [
+            f'execute store result score #ray_end_{axis} se.v run data get storage space_editor:runtime rayPos[{i}] 1000',
+            f'scoreboard players set #ray_sign_{axis} se.v 1',
+            f'execute if score #ray_end_{axis} se.v < #ray_origin_{axis} se.v run scoreboard players set #ray_sign_{axis} se.v -1',
+            f'execute store result score #ray_lo_{axis} se.v run data get storage space_editor:runtime hit.{axis}1m 1',
+            f'execute store result score #ray_hi_{axis} se.v run data get storage space_editor:runtime hit.{axis}2m 1',
+        ]
+    face_ray += [
+        'scoreboard players set #ray_low se.v 0',
+        'scoreboard players set #ray_high se.v 512',
+        'scoreboard players set #ray_found se.v 513',
+        'function space_editor:region/ray_search',
+        'execute if score #ray_found se.v matches ..512 run function space_editor:fill/face_found',
+        'kill @e[type=minecraft:marker,tag=space_editor.ray_probe]',
+    ]
+    fn("fill/face_from_ray", face_ray)
+    fn("fill/face_found", [
+        'execute store result storage space_editor:runtime rayDistance double 0.025 run scoreboard players get #ray_found se.v',
+        'function space_editor:region/ray_probe with storage space_editor:runtime',
+        'function space_editor:region/face',
+    ])
 
     # Copy job creation and archive allocation.
     fn("copy/start", [
