@@ -1,6 +1,15 @@
 {
   "variants": {
-    "": {
+    "facing=north": {
+      "model": "editor:block/guide"
+    },
+    "facing=east": {
+      "model": "editor:block/frame_search_area"
+    },
+    "facing=south": {
+      "model": "editor:block/guide"
+    },
+    "facing=west": {
       "model": "editor:block/guide"
     }
   }

@@ -44,7 +44,7 @@ public class SpaceEditorStage6GameTest {
     static List<? extends net.minecraft.world.entity.decoration.Mannequin> removing(){return helper.getLevel().getEntities(EntityType.MANNEQUIN,e->e.isAlive()&&e.entityTags().contains("pr.removing"));}
     static List<? extends net.minecraft.world.entity.Display.TextDisplay> labels(boolean debug){return helper.getLevel().getEntities(EntityType.TEXT_DISPLAY,e->e.entityTags().contains("space_editor.proxy")&&e.entityTags().contains(debug?"pr.debug":"pr.production"));}
     static String text(net.minecraft.world.entity.Display.TextDisplay e){try{var m=e.getClass().getDeclaredMethod("getText");m.setAccessible(true);return ((net.minecraft.network.chat.Component)m.invoke(e)).getString();}catch(Exception ex){throw new AssertionError(ex);}}
-    static void tick(){cmd("function space_editor:projection/maintenance");cmd("function space_editor:teleport/tick");}
+    static void tick(){cmd("function space_editor:search/tick");cmd("function space_editor:projection/maintenance");cmd("function space_editor:teleport/tick");}
     static void finishDeletes(){for(int i=0;i<6;i++)cmd("function space_editor:projection/maintenance");}
     static boolean loaded(int x,int z){cmd("execute store success storage space_editor:projection testLoaded byte 1 run execute if loaded "+x+" 81 "+z);return state().getBooleanOr("testLoaded",false);}
     static void at(double x,double y,double z,float yaw,float pitch){player.setPos(x,y,z);player.setYRot(yaw);player.setXRot(pitch);}
@@ -152,26 +152,30 @@ public class SpaceEditorStage6GameTest {
         pcmd("scoreboard players add @s pr.leave 1");tick();check(routes().stream().noneMatch(r->previous.contains(r.getIntOr("id",0))),"rejoin invalidates old player session");
         System.out.println("SPACE_EDITOR_STAGE6_PHASE4_PASS: pre-TP activation, two simultaneous transfers, fractional mapping continuity, stable C UUID, logout/load/rejoin");
     }
-    static int measured(){
+    static int measured(){return measured("function space_editor:tick");}
+    static int measured(String command){
         var actor=player.createCommandSourceStack().withPermission(net.minecraft.server.permissions.PermissionSet.ALL_PERMISSIONS);
         var holder=new java.util.concurrent.atomic.AtomicReference<net.minecraft.commands.execution.ExecutionContext<CommandSourceStack>>();
-        net.minecraft.commands.Commands.executeCommandInContext(actor,c->{holder.set(c);helper.getLevel().getServer().getCommands().performPrefixedCommand(actor,"function space_editor:tick");});
+        net.minecraft.commands.Commands.executeCommandInContext(actor,c->{holder.set(c);helper.getLevel().getServer().getCommands().performPrefixedCommand(actor,command);});
         try{var type=net.minecraft.commands.execution.ExecutionContext.class;var limit=type.getDeclaredField("commandLimit");limit.setAccessible(true);var quota=type.getDeclaredField("commandQuota");quota.setAccessible(true);check(limit.getInt(holder.get())==65536,"command limit stays 65536");int used=65536-quota.getInt(holder.get());check(used<65536,"full tick completes within budget");return used;}catch(ReflectiveOperationException e){throw new AssertionError(e);}
     }
     static void stress(int n,boolean two){stress(n,two,false);}
-    static void stress(int n,boolean two,boolean debug){
+    static void stress(int n,boolean two,boolean debug){stress(n,two,debug,false);}
+    static void stress(int n,boolean two,boolean debug,boolean areas){
         fixture(2);cmd("function space_editor:projection/clear");cmd("data modify storage space_editor:document regions set value []");
         var members=new StringJoiner(",");
         for(int i=0;i<n;i++){int x=(i%8)*12,z=(i/8)*12;frame(i+1,x,z,"space_link",i==1?90:0,i==1?1:0,"stress_"+i);cmd("data modify storage space_editor:document regions[{id:"+(i+1)+"}].spaceLinkGroupId set value 1");existence(1000+i,x*1000-4000,x*1000+8000,z*1000-4000,z*1000+8000,"stress_"+i);members.add(""+(i+1));}
         cmd("data modify storage space_editor:document spaceLinkGroups set value [{id:1,localSize:[I;4000,4000,4000],members:["+members+"]}]");
         if(two){second=namedPlayer("LoadTwo");second.setPos(1.25,81,1.25);cmd("scoreboard players set @a se.tp_lock 0");cmd("scoreboard players set @a se.tp_cd 0");teleportPair();}
         if(debug){for(int i=2;i<=n;i++)cmd("execute as @a run function space_editor:projection/debug/map {target:"+i+",region:"+i+"}");cmd("scoreboard players set @a pr.debug 1");}
+        if(areas)for(int row=0;row<(n+7)/8;row++)area(3000+row,-4000,92000,row*12000-4000,row*12000+8000);
         at(1,81,1,0,0);int peak=measured();
         check(routes().size()==(n-1)*(two?2:1),"all logical routes accepted before render budget");
         if(two)check(runtime().getListOrEmpty("transfers").size()==2,"stress simultaneous TP");
-        for(int i=0;i<(debug?40:18);i++)peak=Math.max(peak,measured());
-        long[] times=new long[10];for(int i=0;i<times.length;i++){long t=System.nanoTime();peak=Math.max(peak,measured());times[i]=System.nanoTime()-t;}
-        Arrays.sort(times);System.out.printf("SPACE_EDITOR_STAGE6_PERF link_regions=%d existence_regions=%d players=%d logical_paths=%d rendered=%d debug_rendered=%d full_tick_max_commands=%d median_ms=%.3f p90_ms=%.3f samples=10%n",n,n,two?2:1,routes().size(),bodies(false).size(),bodies(true).size(),peak,times[5]/1e6,times[9]/1e6);
+        int warmup=0;for(;warmup<160||routes().stream().anyMatch(r->!r.contains("existenceCache"));warmup++){check(warmup<512,"cold searches converge within 512 ticks");peak=Math.max(peak,measured());}
+        check(routes().stream().allMatch(r->r.contains("existenceCache")),"all paths finish cold searches before timing");
+        long[] times=new long[20];int steady=0;for(int i=0;i<times.length;i++){long t=System.nanoTime();int used=measured();steady=Math.max(steady,used);peak=Math.max(peak,used);times[i]=System.nanoTime()-t;}
+        Arrays.sort(times);System.out.printf("SPACE_EDITOR_STAGE6_PERF link_regions=%d existence_regions=%d players=%d logical_paths=%d rendered=%d debug_rendered=%d search_areas=%s warmup_ticks=%d full_tick_max_commands=%d steady_max_commands=%d median_ms=%.3f p90_ms=%.3f samples=20%n",n,n,two?2:1,routes().size(),bodies(false).size(),bodies(true).size(),areas,warmup,peak,steady,times[10]/1e6,times[18]/1e6);
         if(two){helper.getLevel().getServer().getPlayerList().remove(second);second=null;tick();}
         cmd("function space_editor:projection/clear");
     }
@@ -188,6 +192,122 @@ public class SpaceEditorStage6GameTest {
         pcmd("function space_editor:projection/demo/cleanup");var remaining=helper.getLevel().getServer().getCommandStorage().get(DOCUMENT).getListOrEmpty("regions");check(remaining.equals(original),"demo cleanup preserves every unrelated Region byte-for-byte");check(bodies(false).isEmpty()&&bodies(true).isEmpty(),"demo cleanup detaches renders");finishDeletes();check(removing().isEmpty(),"demo cleanup deletion queue drains");
         System.out.println("SPACE_EDITOR_STAGE6_DEMO_PASS: additive setup, working links/debug/TP, idempotence, narrow cleanup");
     }
+
+    static void unionTest(){
+        fixture(2);
+        cmd("data remove storage space_editor:document regions[{kind:\"proxy_existence\"}]");
+        cmd("data modify storage space_editor:document regions[{id:2}].rotationY set value 0");
+        cmd("data modify storage space_editor:document regions[{id:2}].flipY set value 0b");
+        existence(101,12000,16000,0,4000,"");existence(102,16000,20000,0,4000,"");existence(103,15000,18000,0,4000,"");
+        cmd("data remove storage space_editor:document regions[].roomId");
+        at(1,81,1,0,0);tick();check(routes().size()==1,"manual regions without RoomID activate");
+        int id=route(2).getIntOr("id",0);UUID uuid=body(id,false).getUUID();
+        for(double x:new double[]{3.5,4,5,7.999}){at(x,81,1,0,0);tick();check(routes().size()==1&&route(2).getIntOr("id",0)==id&&body(id,false).getUUID().equals(uuid),"adjacent/overlap union preserves path and entity");}
+        at(8,81,1,0,0);tick();check(routes().isEmpty(),"exit entire union removes path at exclusive max");
+        at(5,81,1,0,0);tick();check(routes().isEmpty(),"existence alone does not recreate");
+        at(1,81,1,0,0);tick();check(routes().size()==1&&route(2).getIntOr("id",0)!=id,"SpaceLink reentry recreates");
+        System.out.println("SPACE_EDITOR_STAGE6_UNION_PASS: no RoomID, adjacent/overlapping union, stable ID/UUID, exit and reentry");
+    }
+    static void area(int id,int x1,int x2,int z1,int z2){
+        existence(id,x1,x2,z1,z2,"");cmd("data modify storage space_editor:document regions[{id:"+id+"}].kind set value \"search_area\"");
+    }
+    static void prepareQuery(double x,double z,String dimension,boolean cache){
+        if(!cache)cmd("data modify storage space_editor:projection route set value {}");
+        cmd("data modify storage space_editor:projection route.dimension set value \""+dimension+"\"");
+        cmd("data modify storage space_editor:projection route.point set value ["+x+"d,81d,"+z+"d]");
+        cmd("scoreboard players set #spx se.v "+(int)Math.floor(x*2000));cmd("scoreboard players set #spy se.v 162000");cmd("scoreboard players set #spz se.v "+(int)Math.floor(z*2000));
+    }
+    static boolean query(double x,double z,String dim,boolean cache){
+        cmd("function space_editor:search/tick");prepareQuery(x,z,dim,cache);
+        cmd("function space_editor:search/query");
+        check(!matches("execute if score #pending pr.v matches 1"),"small query completes");
+        return matches("execute if score #exists pr.v matches 1");
+    }
+    static void searchTest(){
+        fixture(2);cmd("function space_editor:projection/clear");cmd("data modify storage space_editor:document regions set value []");
+        for(int i=0;i<48;i++)existence(1000+i,100000+i*5000,104000+i*5000,0,4000,"");
+        existence(2000,0,4000,0,4000,"");existence(2001,4000,8000,0,4000,"");existence(2002,2000,6000,3000,7000,"");
+        double[][] points={{0,0},{3.9995,1},{4,1},{7.9995,1},{8,1},{3,6.9995},{1,5},{-0.0005,1}};
+        boolean[] expected=new boolean[points.length];
+        for(int i=0;i<points.length;i++)expected[i]=query(points[i][0],points[i][1],"minecraft:overworld",false);
+        area(3000,-1000,5000,-1000,8000);area(3001,3000,9000,-1000,8000);
+        for(int i=0;i<20;i++)cmd("function space_editor:search/tick");
+        check(matches("execute if data storage space_editor:search index[{id:3000}].candidates[{id:2001}]"),"index includes partially overlapping regions");
+        for(int i=0;i<points.length;i++)check(query(points[i][0],points[i][1],"minecraft:overworld",false)==expected[i],"area/no-area equality point "+i);
+        cmd("data remove storage space_editor:search index[].complete");
+        check(query(1,1,"minecraft:overworld",false),"incomplete index falls back");
+        check(!query(1,1,"minecraft:the_nether",false),"dimensions independent");
+        check(query(1,1,"minecraft:overworld",false),"cache established");
+        cmd("data remove storage space_editor:document regions[{id:2000}]");
+        check(!query(1,1,"minecraft:overworld",true),"cached deleted region invalidates immediately");
+        cmd("data modify storage space_editor:document regions[{id:2001}].x1m set value 0");
+        check(query(1,1,"minecraft:overworld",false),"existence resize takes effect while index rebuilding");
+        cmd("data modify storage space_editor:document regions[{id:3000}].x1m set value 9000");cmd("data modify storage space_editor:document regions[{id:3000}].x2m set value 12000");
+        check(query(1,1,"minecraft:overworld",false),"area move cannot hide regions");
+        cmd("data remove storage space_editor:document regions[{kind:\"search_area\"}]");
+        check(query(1,1,"minecraft:overworld",false),"area deletion fallback");
+        cmd("data modify storage space_editor:document regions set value []");
+        for(int i=0;i<512;i++)existence(4000+i,100000+i*5000,104000+i*5000,0,4000,"");
+        cmd("function space_editor:search/tick");prepareQuery(1,1,"minecraft:overworld",false);
+        int peak=0;for(int i=0;i<8;i++){cmd("function space_editor:search/tick");prepareQuery(1+i*0.1,1,"minecraft:overworld",true);peak=Math.max(peak,measured("function space_editor:search/query"));}
+        check(matches("execute if score #exists pr.v matches 0")&&matches("execute if score #pending pr.v matches 0"),"large negative search completes within bounded slices");
+        cmd("data modify storage space_editor:document regions set value []");
+        for(int i=0;i<3;i++)check(!query(1,1,"minecraft:overworld",false),"empty dimension completes without scan");
+        System.out.println("SPACE_EDITOR_STAGE6_SEARCH_PASS: boundaries, overlapping areas, partial overlap, edits/deletes, dimension, 512-region bounded miss peak_commands="+peak);
+    }
+    static void searchPerf(){
+        for(int n:new int[]{64,512}){
+            cmd("data modify storage space_editor:document regions set value []");
+            for(int i=0;i<n-1;i++)existence(5000+i,100000+i*5000,104000+i*5000,0,4000,"");
+            existence(9000,0,4000,0,4000,"");
+            for(String mode:new String[]{"dimension_scan","hit_cache","search_area"}){
+                if(mode.equals("search_area")){area(9999,-1000,9000,-1000,9000);long buildTime=0;int buildCommands=0,buildPeak=0;for(int i=0;i<n/8+3;i++){long start=System.nanoTime();int used=measured("function space_editor:search/tick");buildTime+=System.nanoTime()-start;buildCommands+=used;buildPeak=Math.max(buildPeak,used);}System.out.printf("SPACE_EDITOR_STAGE6_BUILD_PERF regions=%d areas=1 total_commands=%d peak_commands=%d total_ms=%.3f%n",n,buildCommands,buildPeak,buildTime/1e6);}
+                long[] times=new long[20];int commands=0;
+                for(int k=0;k<30;k++){
+                    cmd("function space_editor:search/tick");prepareQuery(1,1,"minecraft:overworld",mode.equals("hit_cache"));
+                    // Benchmark complete queries in one isolated context; production
+                    // uses 64 tests/tick and resumes across ticks instead.
+                    cmd("scoreboard players set #search_budget pr.v 2048");
+                    long t=System.nanoTime();int used=measured("function space_editor:search/query");long elapsed=System.nanoTime()-t;
+                    check(matches("execute if score #exists pr.v matches 1"),"benchmark finds same region");
+                    if(k>=10){times[k-10]=elapsed;commands=Math.max(commands,used);}
+                }
+                Arrays.sort(times);System.out.printf("SPACE_EDITOR_STAGE6_SEARCH_PERF mode=%s regions=%d commands=%d median_ms=%.3f p90_ms=%.3f samples=20%n",mode,n,commands,times[10]/1e6,times[18]/1e6);
+            }
+        }
+    }
+    static void modeTest(){
+        fixture(2);pcmd("function space_editor:start");
+        check(matches("execute if items entity @a[name=ProjectorOne,limit=1] container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"mode_toggle\"}}]"),"start issues mode wand");
+        pcmd("item replace entity @s weapon.mainhand with minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"mode_toggle\"}}]");
+        pcmd("scoreboard players set @s se.use 1");measured();check(!player.entityTags().contains("space_editor.editing"),"editing -> play through root tick");
+        check(matches("execute if items entity @a[name=ProjectorOne,limit=1] weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"mode_toggle\"}}]"),"play retains mode wand");
+        for(int i=0;i<12;i++){pcmd("scoreboard players set @s se.use 1");measured();}check(!player.entityTags().contains("space_editor.editing"),"held use never double toggles");
+        for(int i=0;i<8;i++)measured();pcmd("scoreboard players set @s se.use 1");measured();check(player.entityTags().contains("space_editor.editing"),"play -> editing through root tick");
+        check(matches("execute if score @a[name=ProjectorOne,limit=1] se.use matches 0"),"use event consumed");
+        second=namedPlayer("ModeTwo");cmd("execute as @a[name=ModeTwo] run item replace entity @s weapon.mainhand with minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"mode_toggle\"}}]");
+        cmd("scoreboard players set @a[name=ModeTwo] se.use 1");measured();check(player.entityTags().contains("space_editor.editing")&&!second.entityTags().contains("space_editor.editing"),"second player cannot steal editor lock");
+        helper.getLevel().getServer().getPlayerList().remove(second);second=null;
+        pcmd("function space_editor:play");
+        System.out.println("SPACE_EDITOR_STAGE6_MODE_PASS: issue, retain, both directions, debounce, consumption, multiplayer lock");
+    }
+
+
+    static void areaEditTest(){
+        fixture(2);pcmd("function space_editor:start");
+        cmd("data remove storage space_editor:runtime selection");
+        cmd("data modify storage space_editor:runtime hover set value {dimension:\"minecraft:overworld\",pos:[0d,81d,0d]}");pcmd("function space_editor:input/search_area");
+        cmd("data modify storage space_editor:runtime hover.pos set value [127d,84d,127d]");pcmd("function space_editor:input/search_area");
+        check(matches("execute if data storage space_editor:document regions[{kind:\"search_area\",sxm:128000,szm:128000}]"),"wand creates 128-block area beyond ordinary limit");
+        cmd("data modify storage space_editor:runtime hit set from storage space_editor:document regions[{kind:\"search_area\"}]");pcmd("function space_editor:set_step {amount:1}");pcmd("function space_editor:region/resize_all");
+        check(matches("execute if data storage space_editor:document regions[{kind:\"search_area\",sxm:130000}]"),"ordinary resize supports large area");
+        cmd("data modify storage space_editor:runtime hit set from storage space_editor:document regions[{kind:\"search_area\"}]");cmd("data modify storage space_editor:runtime hitFace set value 2");pcmd("function space_editor:region/move");
+        check(matches("execute if data storage space_editor:document regions[{kind:\"search_area\"}]"),"move preserves kind");
+        cmd("data modify storage space_editor:runtime hit set from storage space_editor:document regions[{kind:\"search_area\"}]");pcmd("function space_editor:region/delete_selected");
+        check(!matches("execute if data storage space_editor:document regions[{kind:\"search_area\"}]"),"ordinary delete removes area");
+        pcmd("function space_editor:set_step {amount:0.1}");pcmd("function space_editor:play");System.out.println("SPACE_EDITOR_STAGE6_AREA_EDIT_PASS: two-click placement, large resize, move, delete");
+    }
+
     static void test(GameTestHelper h){
         helper=h;source=h.getLevel().getServer().createCommandSourceStack();cmd("function space_editor:load");cmd("forceload add -16 -16 112 112");player=namedPlayer("ProjectorOne");
         final int[] phase={0},wait={0};final boolean[] done={false};
@@ -200,6 +320,7 @@ public class SpaceEditorStage6GameTest {
                 case 6->{tick();check(routes().stream().map(r->r.getIntOr("id",0)).collect(java.util.stream.Collectors.toSet()).equals(reloadIds),"actual reload preserves path IDs");System.out.println("SPACE_EDITOR_STAGE6_RELOAD_PASS");phase[0]++;}
                 case 7->{stress(4,false);phase[0]++;}case 8->{stress(16,false);phase[0]++;}case 9->{stress(64,false);phase[0]++;}case 10->{stress(64,true);phase[0]++;}
                 case 11->{stress(64,true,true);phase[0]++;}case 12->{demoTest();phase[0]++;}
+                case 13->{unionTest();phase[0]++;}case 14->{searchTest();phase[0]++;}case 15->{searchPerf();phase[0]++;}case 16->{modeTest();phase[0]++;}case 17->{stress(64,true,true,true);phase[0]++;}case 18->{areaEditTest();phase[0]++;}
                 default->{cmd("function space_editor:projection/disable");finishDeletes();check(removing().isEmpty(),"disable/reload deletion queues fully drain");System.out.println("SPACE_EDITOR_STAGE6_RUNTIME_PASS: four phases, reload, bounded full-tick load, additive demo");done[0]=true;h.succeed();}
             }
         }catch(Throwable ex){done[0]=true;ex.printStackTrace();h.fail(ex.getMessage());}});

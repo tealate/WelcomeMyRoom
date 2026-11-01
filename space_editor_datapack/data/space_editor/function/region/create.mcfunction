@@ -1,3 +1,5 @@
+scoreboard players set #region_max se.v 32
+execute if data storage space_editor:runtime selection{kind:"search_area"} run scoreboard players set #region_max se.v 512
 scoreboard players set #valid se.v 1
 execute store result score #ax se.v run data get storage space_editor:runtime selection.a[0] 1
 execute store result score #bx se.v run data get storage space_editor:runtime selection.b[0] 1
@@ -8,7 +10,7 @@ scoreboard players operation #maxx se.v > #bx se.v
 scoreboard players add #maxx se.v 1
 scoreboard players operation #sizex se.v = #maxx se.v
 scoreboard players operation #sizex se.v -= #minx se.v
-execute unless score #sizex se.v matches 1..32 run scoreboard players set #valid se.v 0
+execute if score #sizex se.v > #region_max se.v run scoreboard players set #valid se.v 0
 execute store result score #ay se.v run data get storage space_editor:runtime selection.a[1] 1
 execute store result score #by se.v run data get storage space_editor:runtime selection.b[1] 1
 scoreboard players operation #miny se.v = #ay se.v
@@ -18,7 +20,7 @@ scoreboard players operation #maxy se.v > #by se.v
 scoreboard players add #maxy se.v 1
 scoreboard players operation #sizey se.v = #maxy se.v
 scoreboard players operation #sizey se.v -= #miny se.v
-execute unless score #sizey se.v matches 1..32 run scoreboard players set #valid se.v 0
+execute if score #sizey se.v > #region_max se.v run scoreboard players set #valid se.v 0
 execute store result score #az se.v run data get storage space_editor:runtime selection.a[2] 1
 execute store result score #bz se.v run data get storage space_editor:runtime selection.b[2] 1
 scoreboard players operation #minz se.v = #az se.v
@@ -28,8 +30,8 @@ scoreboard players operation #maxz se.v > #bz se.v
 scoreboard players add #maxz se.v 1
 scoreboard players operation #sizez se.v = #maxz se.v
 scoreboard players operation #sizez se.v -= #minz se.v
-execute unless score #sizez se.v matches 1..32 run scoreboard players set #valid se.v 0
-execute unless score #valid se.v matches 1 run return run tellraw @s {"text": "[Space Editor] 各辺は1〜32ブロックにしてください。", "color": "red"}
+execute if score #sizez se.v > #region_max se.v run scoreboard players set #valid se.v 0
+execute unless score #valid se.v matches 1 run return run tellraw @s {"text": "[Space Editor] 各辺は通常1〜32、検索エリア1〜512ブロックにしてください。", "color": "red"}
 execute store result score #next se.v run data get storage space_editor:document nextId 1
 data modify storage space_editor:runtime region set value {id:0,idText:"",dimension:"",min:[I;0,0,0],maxExclusive:[I;0,0,0],role:"generic",state:"committed",visible:1b}
 execute store result storage space_editor:runtime region.id int 1 run scoreboard players get #next se.v
@@ -77,6 +79,7 @@ scoreboard players operation #szm se.v *= #1000 se.v
 execute store result storage space_editor:runtime region.z1m int 1 run scoreboard players get #z1m se.v
 execute store result storage space_editor:runtime region.z2m int 1 run scoreboard players get #z2m se.v
 execute store result storage space_editor:runtime region.szm int 1 run scoreboard players get #szm se.v
+execute if data storage space_editor:runtime selection{kind:"search_area"} run data modify storage space_editor:runtime region.kind set value "search_area"
 data modify storage space_editor:document regions append from storage space_editor:runtime region
 scoreboard players add #next se.v 1
 execute store result storage space_editor:document nextId int 1 run scoreboard players get #next se.v

@@ -6,6 +6,7 @@ data modify storage space_editor:projection contacts set from storage space_edit
 scoreboard players set #updates pr.v 24
 execute store result score #contacts pr.v run data get storage space_editor:projection contacts
 execute if score #contacts pr.v matches 64.. run scoreboard players set #updates pr.v 8
+execute if score #contacts pr.v matches 64.. run scoreboard players set #search_budget pr.v 48
 execute if score #contacts pr.v matches 64.. if entity @a[scores={pr.debug=1}] run scoreboard players set #updates pr.v 4
 function space_editor:projection/contact_scan
 data modify storage space_editor:projection actorQueue set from storage space_editor:projection players

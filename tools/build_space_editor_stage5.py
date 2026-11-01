@@ -965,6 +965,7 @@ def generate_type_colors() -> None:
     fn("preview/type_color", [
         f'$execute in $(dimension) if data {D} regions[{{id:$(id),kind:"{kind}"}}] as @e[type=minecraft:block_display,tag=space_editor.region,scores={{se.id=$(id)}}] run data merge entity @s {{block_state:{{Name:"{carrier}",Properties:{{facing:"{facing}"}}}}}}'
         for kind, facing in colors])
+    append(F / "preview/type_color.mcfunction", [f'$execute in $(dimension) if data {D} regions[{{id:$(id),kind:"search_area"}}] as @e[type=minecraft:block_display,tag=space_editor.region,scores={{se.id=$(id)}}] run data merge entity @s {{block_state:{{Name:"{stage4.DISPLAY_BLOCKS["guide"]}",Properties:{{facing:"east"}}}},width:1024f,height:1024f,view_range:16f}}'])
     for name in ("preview/spawn", "pair/spawn_frame", "preview/highlight", "preview/clear_highlight"):
         append(F / f"{name}.mcfunction", ['$function space_editor:preview/type_color {id:$(id),dimension:"$(dimension)"}'])
     append(F / "pair/preview_pending.mcfunction", [
@@ -985,6 +986,10 @@ def main() -> None:
     build_space_editor_stage6_1.generate()
     import build_space_editor_stage6
     build_space_editor_stage6.generate(__import__(__name__))
+    import build_space_editor_search
+    build_space_editor_search.generate(__import__(__name__))
+    import build_space_editor_search_ui
+    build_space_editor_search_ui.generate(__import__(__name__))
     generate_type_colors()
     print(f"Generated stage-5 Space Editor: {len(list(F.rglob('*.mcfunction')))} functions")
 

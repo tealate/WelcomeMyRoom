@@ -1,0 +1,12 @@
+execute store result score #bound pr.v run data get storage space_editor:runtime spatialRegion.x1m 2
+execute if score #spx se.v < #bound pr.v run return run function space_editor:search/exclude_x_hi
+execute store result score #bound pr.v run data get storage space_editor:runtime spatialRegion.x2m 2
+execute if score #spx se.v >= #bound pr.v run return run function space_editor:search/exclude_x_lo
+execute store result score #bound pr.v run data get storage space_editor:runtime spatialRegion.y1m 2
+execute if score #spy se.v < #bound pr.v run return run function space_editor:search/exclude_y_hi
+execute store result score #bound pr.v run data get storage space_editor:runtime spatialRegion.y2m 2
+execute if score #spy se.v >= #bound pr.v run return run function space_editor:search/exclude_y_lo
+execute store result score #bound pr.v run data get storage space_editor:runtime spatialRegion.z1m 2
+execute if score #spz se.v < #bound pr.v run return run function space_editor:search/exclude_z_hi
+execute store result score #bound pr.v run data get storage space_editor:runtime spatialRegion.z2m 2
+execute if score #spz se.v >= #bound pr.v run return run function space_editor:search/exclude_z_lo

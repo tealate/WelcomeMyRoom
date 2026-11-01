@@ -58,3 +58,5 @@ tellraw @a {"text": "[Space Editor] 第4段階: Mask生成・編集・可視化�
 tellraw @a {"text": "[Space Editor] 第5段階: ペアRegion編集・TP。/function space_editor:pair/help", "color": "aqua"}
 function space_editor:proxy_spike/load
 function space_editor:projection/load
+data remove storage space_editor:search snapshot
+scoreboard objectives add se.mode_gap dummy

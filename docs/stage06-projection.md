@@ -4,7 +4,7 @@
 
 ## ライブで最初に試す
 
-今回の変更は **`/reload` のみ**で反映します。アセット変更はありません。既存ワールドのRegionや地形を初期化する必要はありません。
+存在範囲の独立化・検索エリア・モード切替棒を追加しました。**`/reload` と `F3+T`** で反映します。新しい使い方・検索方式・最新測定は [検索エリアとモード切替](search-areas.md) を参照してください。既存ワールドのRegionや地形を初期化する必要はありません。
 
 平坦な場所で、東側に32ブロック、南側に20ブロック程度の空間を用意してください。床の上に立って次を実行します。設定開始時の足元を切り下げた座標を `(X,Y,Z)` とします。通常は地面より1高いYです。
 
@@ -22,9 +22,9 @@
 |SpaceLink A|X〜X+4|Y〜Y+4|Z+4〜Z+8|0度、通常|
 |SpaceLink B|X+12〜X+16|同上|同上|90度、FlipY|
 |SpaceLink C|X+24〜X+28|同上|同上|180度、FlipY|
-|A存在範囲|X-4〜X+8|Y-4〜Y+10|Z〜Z+12|room A|
-|B存在範囲|X+8〜X+20|同上|同上|room B|
-|C存在範囲|X+20〜X+32|同上|同上|room C|
+|A存在範囲|X-4〜X+8|Y-4〜Y+10|Z〜Z+12|独立した存在範囲|
+|B存在範囲|X+8〜X+20|同上|同上|独立した存在範囲|
+|C存在範囲|X+20〜X+32|同上|同上|独立した存在範囲|
 |Debug B|X+12〜X+16|Y〜Y+4|Z+16〜Z+20|0度、通常|
 |Debug C|X+24〜X+28|同上|同上|0度、通常|
 
@@ -45,22 +45,11 @@
 
 後片付けは `/function space_editor:projection/demo/cleanup`。この配置で作成したRegion・対応経路・名前・Debug設定だけを削除し、既存のRegionを保持します。受け取った編集棒は通常の編集用として残ります。正式投影全体を止める場合は `/function space_editor:projection/disable` を別途実行してください。
 
-## 既存のRoomへ組み込む
+## 既存の空間へ組み込む
 
-既存のSpaceLinkGroupをそのまま使います。各RegionにRoom名を割り当て、そのRoomの代理存在範囲を存在範囲指定棒で作成します。例ではRegion 2が投影先、Region 5がその存在範囲です。IDを実際の保存値に置き換えてください。
+SpaceLinkGroupとProxy存在範囲は独立です。SpaceLink接続棒でグループを作り、存在範囲指定棒で存在範囲を登録し、`projection/enable` → `play` で開始します。RoomIDの設定は不要です。保存済みのRoomIDは互換メタデータとして残せますが、存在検索では参照しません。
 
-```mcfunction
-/function space_editor:start
-/function space_editor:space_group/set_room {id:2,roomId:"room_b"}
-/function space_editor:proxy_existence/set_room {id:5,roomId:"room_b"}
-/function space_editor:pair/set_pose {id:2,rotationY:90,flipY:1}
-/function space_editor:projection/enable
-/function space_editor:play
-```
-
-`set_room` はRegionを新規作成しません。存在範囲指定棒で作った `kind:"proxy_existence"` Regionを指定します。SpaceLinkGroupの作成・追加・編集は [SpaceLinkGroup仕様](space-link-groups.md) を参照してください。旧SpaceLinkの `partnerId` は使用しません。
-
-Roomは任意の文字列IDで、同じDimensionの同じRoom名を持つ存在範囲の和集合を使います。別のRoomには別名を付けてください。存在範囲はリンク・TPとは独立です。移動・サイズ変更・削除は次の経路更新時に反映します。投影先のRoom名が空ならその経路は有効化しません。
+同Dimensionのすべての `kind:"proxy_existence"` Regionを和集合として扱います。投影した足元がどれか1つの範囲内なら同じ経路・表示を維持します。重複で経路が増えることはありません。範囲のminは含み、maxは含みません。範囲に入るだけでは生成せず、SpaceLinkへの再侵入が生成契機です。回転・FlipY・本人TP・Debugは従来どおりです。
 
 |コマンド (`/function space_editor:` に続ける)|作用|
 |---|---|
@@ -92,7 +81,7 @@ Debug用Regionはリンクと同じローカルサイズを持つ通常Regionを
 |`schema`|現在1|
 |`warning`|最後の未解決TP警告。履歴なので解消後も残ることがある|
 
-経路キーは **owner + groupId + entrySourceId + targetId + sourceInstanceId**。同じRoomへ別Group・別入口から入る経路を潰しません。`id` はEntityとの結合キーです。`sourceId` はTPで変更できる現在の参照フレーム、`entrySourceId` は生成時から不変です。`uuid/currentInstanceId/targetInstanceId/roomId/dimension/point` も保持します。
+経路キーは **owner + groupId + entrySourceId + targetId + sourceInstanceId**。同じRoomへ別Group・別入口から入る経路を潰しません。`id` はEntityとの結合キーです。`sourceId` はTPで変更できる現在の参照フレーム、`entrySourceId` は生成時から不変です。`uuid/currentInstanceId/targetInstanceId/dimension/point` も保持します。
 
 Scoreboardは `pr.owner/id/epoch/debug/gc/remove/v/leave`。`pr.leave` は `minecraft.custom:minecraft.leave_game`、他はdummyです。Entityは `space_editor.proxy` と `pr.production` または `pr.debug` を持ち、本体とtext_displayが同じ経路ID・owner・世代を共有します。Team `pr_hidden` が名前と衝突を抑制します。06-1の `sp.*`・Teamとは分離しています。
 
@@ -126,13 +115,15 @@ Mannequin削除は共通入口で追従対象タグを外し、透明化、装�
 
 ## 予算と休止
 
+存在検索は追加で64候補/tick（接点64件以上では48候補）、索引構築は8候補/tickに制限します。未確定の検索は経路を保持して後続tickへ回し、誤って範囲外と判定しません。新しい経路は検索が確定してから表示します。大量のキャッシュミス時には表示・削除の遅れが増えます。
+
 通常は最大24経路/tickを更新します。接点が64件以上のtickは8経路（Debug有効なプレイヤーがいれば4経路）に抑え、未処理経路を先頭へ残すround-robinで次tickへ送ります。新規本体は本番・Debugを合わせて最大8体/tick。論理経路上限は全体256、接点走査4096、プレイヤー登録整理256、転送記録64です。上限拒否数はstatusに表示します。拒否された新規経路は自動的に再試行せず、再侵入が必要です。
 
 少数経路は毎tick。大量経路では追従・削除が遅れます。126経路・8更新なら一巡16tickです。この負荷ケースを通常の描画品質の保証に使わないでください。24経路を超える利用ではStage07前に運用上限・優先度を設計してください。
 
 表示先チャンクが未ロード、または96ブロック以内に実プレイヤーがいない場合、表示Entityを削除して論理経路を休止します。必要になれば同じ経路IDで表示を再作成します。この休止とreloadではEntity UUIDは変わり得ます。実Playerだけが投影元なので、代理から代理への再帰生成はありません。遅れてロードされた古いEntityは世代・owner・経路IDで回収します。強制チャンクロードはランタイムでは行いません。
 
-## 自動検証と結果
+## 旧Stage06の自動検証記録（独立化前）
 
 ```powershell
 python tools/build_space_editor_stage6.py

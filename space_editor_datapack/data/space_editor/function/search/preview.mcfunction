@@ -1,0 +1,1 @@
+$execute in $(dimension) positioned 0.0 0.0 0.0 positioned ~$(cx) ~$(cy) ~$(cz) run summon minecraft:text_display ~ ~0.75 ~ {Tags:["space_editor.preview","space_editor.label"],text:{text:"SearchArea #$(id) / 検索最適化",color:"blue"},billboard:"center",see_through:1b}

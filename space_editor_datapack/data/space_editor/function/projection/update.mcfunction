@@ -14,13 +14,9 @@ data modify storage space_editor:runtime map.pitch set from entity @s Rotation[1
 $data modify storage space_editor:runtime map.result set from storage space_editor:runtime spaceLinkContacts[{uuid:$(uuid),sourceRegionId:$(sourceId),targetRegionId:$(targetId)}].destination
 execute unless data storage space_editor:runtime map.result run function space_editor:mapping/position
 data modify storage space_editor:projection route.point set from storage space_editor:runtime map.result.point
-data modify storage space_editor:projection route.roomId set from storage space_editor:runtime map.target.roomId
 data modify storage space_editor:projection route.dimension set from storage space_editor:runtime map.target.dimension
 data modify storage space_editor:projection route.targetInstanceId set value 0
 execute if data storage space_editor:runtime map.target.instanceId run data modify storage space_editor:projection route.targetInstanceId set from storage space_editor:runtime map.target.instanceId
-data modify storage space_editor:projection exists set value []
-function space_editor:projection/existence_lookup with storage space_editor:projection route
-scoreboard players set #exists pr.v 0
 data modify storage space_editor:runtime projectionPoint set from storage space_editor:projection route.point
 execute store result score #spx se.v run data get storage space_editor:runtime projectionPoint[0] 2000
 scoreboard players operation #quant_next se.v = #spx se.v
@@ -40,7 +36,8 @@ scoreboard players add #quant_next se.v 1
 execute store result storage space_editor:runtime quantized double 0.0005 run scoreboard players get #quant_next se.v
 execute store success score #quant_diff se.v run data modify storage space_editor:runtime quantized set from storage space_editor:runtime projectionPoint[2]
 execute if score #quant_diff se.v matches 0 run scoreboard players operation #spz se.v = #quant_next se.v
-function space_editor:projection/existence_scan
+function space_editor:search/query
+execute if score #pending pr.v matches 1 run return run scoreboard players set #valid pr.v 1
 execute unless score #exists pr.v matches 1 run return 0
 scoreboard players set #valid pr.v 1
 data modify storage space_editor:projection sourceFrame set from storage space_editor:runtime map.source

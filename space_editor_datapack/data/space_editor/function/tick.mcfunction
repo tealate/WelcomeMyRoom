@@ -2,6 +2,9 @@ function space_editor:space_group/session_tick
 scoreboard players add @a se.cd 0
 scoreboard players remove @a[scores={se.cd=1..}] se.cd 1
 execute as @a[scores={se.pheld=1}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"teleport"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"teleport_one_way"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"space_link"}}] unless items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"proxy_existence"}}] run function space_editor:pair/cancel
+scoreboard players add @a se.mode_gap 0
+scoreboard players remove @a[scores={se.mode_gap=1..}] se.mode_gap 1
+execute as @a[scores={se.use=1..}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"mode_toggle"}}] run function space_editor:input/mode_toggle
 scoreboard players set #selection_cursor_active se.v 0
 execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"region"}}] run function space_editor:selection/track
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"region"}}] run function space_editor:input/region
@@ -36,9 +39,12 @@ execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"space_link"}}] run function space_editor:pair/click
 execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"proxy_existence"}}] run function space_editor:pair/held_proxy_existence
 execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"proxy_existence"}}] run function space_editor:pair/click
+execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"search_area"}}] run function space_editor:selection/track
+execute as @a[tag=space_editor.editing,scores={se.use=1..,se.cd=0}] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:"search_area"}}] run function space_editor:input/search_area
 scoreboard players set @a[scores={se.use=1..}] se.use 0
 execute unless score #selection_cursor_active se.v matches 1 run function space_editor:preview/remove_selection_candidate
 execute as @a[tag=space_editor.editing] at @s run function space_editor:internal/dimension_tick
+function space_editor:search/tick
 function space_editor:projection/maintenance
 function space_editor:teleport/tick
 function space_editor:proxy_spike/tick

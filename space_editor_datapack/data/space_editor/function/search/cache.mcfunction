@@ -1,0 +1,1 @@
+function space_editor:search/fast_contains with storage space_editor:projection route.existenceCache

@@ -128,6 +128,7 @@ def contacts():
         "scoreboard players set #updates pr.v 24",
         f"execute store result score #contacts pr.v run data get {P} contacts",
         "execute if score #contacts pr.v matches 64.. run scoreboard players set #updates pr.v 8",
+        "execute if score #contacts pr.v matches 64.. run scoreboard players set #search_budget pr.v 48",
         "execute if score #contacts pr.v matches 64.. if entity @a[scores={pr.debug=1}] run scoreboard players set #updates pr.v 4",
         "function space_editor:projection/contact_scan",
         f"data modify {P} actorQueue set from {P} players", "function space_editor:projection/finish_players",
@@ -149,8 +150,6 @@ def contacts():
         f'$execute if data {P} players[{{id:$(owner)}}].previous[{{groupId:$(spaceLinkGroupId),sourceId:$(sourceRegionId)}}] run return 0',
         f'$data remove {P} active[{{owner:$(owner),groupId:$(spaceLinkGroupId),entrySourceId:$(sourceRegionId),targetId:$(targetRegionId),sourceInstanceId:$(instanceId),suspended:1b}}]',
         f'$execute if data {P} active[{{owner:$(owner),groupId:$(spaceLinkGroupId),entrySourceId:$(sourceRegionId),targetId:$(targetRegionId),sourceInstanceId:$(instanceId)}}] run return 0',
-        f'execute if data {P} contact{{targetRoomId:""}} run return run scoreboard players add #blocked pr.v 1',
-        f'$execute unless data {D} regions[{{kind:"proxy_existence",roomId:"$(targetRoomId)"}}] run return run scoreboard players add #blocked pr.v 1',
         f'execute store result score #count pr.v run data get {P} active',
         'execute if score #count pr.v matches 256.. run return run scoreboard players add #blocked pr.v 1',
         f'$data modify {P} new set value {{owner:$(owner),uuid:$(uuid),groupId:$(spaceLinkGroupId),entrySourceId:$(sourceRegionId),sourceId:$(sourceRegionId),targetId:$(targetRegionId),sourceInstanceId:$(instanceId),currentInstanceId:$(instanceId),targetInstanceId:0}}',
@@ -190,15 +189,14 @@ def routing():
         f'$data modify {R} map.result set from {R} spaceLinkContacts[{{uuid:$(uuid),sourceRegionId:$(sourceId),targetRegionId:$(targetId)}}].destination',
         f"execute unless data {R} map.result run function space_editor:mapping/position",
         f"data modify {P} route.point set from {R} map.result.point",
-        f"data modify {P} route.roomId set from {R} map.target.roomId",
         f"data modify {P} route.dimension set from {R} map.target.dimension",
         f"data modify {P} route.targetInstanceId set value 0",
         f"execute if data {R} map.target.instanceId run data modify {P} route.targetInstanceId set from {R} map.target.instanceId",
-        f"data modify {P} exists set value []", f"function space_editor:projection/existence_lookup with {P} route",
-        "scoreboard players set #exists pr.v 0",
         f"data modify {R} projectionPoint set from {P} route.point",
         *[line for i,a in enumerate("xyz") for line in read_fixed(f"projectionPoint[{i}]",f"#sp{a}")],
-        "function space_editor:projection/existence_scan", "execute unless score #exists pr.v matches 1 run return 0",
+        "function space_editor:search/query",
+        "execute if score #pending pr.v matches 1 run return run scoreboard players set #valid pr.v 1",
+        "execute unless score #exists pr.v matches 1 run return 0",
         "scoreboard players set #valid pr.v 1",
         f"data modify {P} sourceFrame set from {R} map.source", f"data modify {P} targetFrame set from {R} map.target",
         "function space_editor:projection/appearance",
@@ -209,9 +207,9 @@ def routing():
         f"execute unless score @s pr.debug matches 1 run function space_editor:projection/remove_debug with {P} route",
     ])
     fn("source_dimension", ["scoreboard players set #dimension pr.v 0", '$execute if dimension $(dimension) run scoreboard players set #dimension pr.v 1'])
-    fn("suspended", [f'$execute unless data {D} regions[{{kind:"proxy_existence",roomId:"$(roomId)",dimension:"$(dimension)"}}] run return 0',
+    fn("suspended", [f'$execute unless data {D} regions[{{kind:"proxy_existence",dimension:"$(dimension)"}}] run return 0',
         "scoreboard players set #valid pr.v 1", f"function space_editor:projection/remove_render with {P} route"])
-    fn("existence_lookup", [f'$data modify {P} exists append from {D} regions[{{kind:"proxy_existence",roomId:"$(roomId)",dimension:"$(dimension)"}}]'])
+    fn("existence_lookup", [f'$data modify {P} exists append from {D} regions[{{kind:"proxy_existence",dimension:"$(dimension)"}}]'])
     fn("existence_scan", [
         f"execute unless data {P} exists[0] run return 0", "execute if score #exists pr.v matches 1 run return 0",
         f"data modify {R} spatialRegion set from {P} exists[0]",
@@ -404,7 +402,7 @@ def controls():
     fn("status", [f"data get {D} projection", f"data get {P} active", 'tellraw @s [{text:"projection blocked entries="},{score:{name:"#blocked",objective:"pr.v"}}]'])
     fn("help", ['tellraw @s ' + json.dumps({"text": t, "color": "aqua"},ensure_ascii=False) for t in (
         "Stage06: /function space_editor:projection/enable → space_editor:play → SpaceLinkへ外から侵入",
-        "各SpaceLinkにspace_group/set_room、存在範囲にproxy_existence/set_roomで同じroomIdを設定",
+        "RoomID不要。同Dimensionの全Proxy存在範囲の和集合で投影を維持。検索エリア棒は最適化専用",
         'projection/debug/map {target:3,region:7} → projection/debug/on / off',
         "projection/status / clear（経路と侵入履歴を初期化、内部でも再生成） / disable",
         'projection/visual {pose:"standing",pivot:1.9} は反転ピボット補正。詳細 docs/stage06-projection.md',
@@ -469,10 +467,8 @@ def demo():
     fn("demo/group", group)
     configure=[]
     for k in ("a","b","c"):
-        configure += [f'$function space_editor:space_group/set_room {{id:$({k}),roomId:"stage6_demo_$(a)_{k}"}}',
-                      f'$data modify {R} hit set from {D} regions[{{id:$(e{k})}}]',
-                      "function space_editor:pair/mark_existence",
-                      f'$function space_editor:proxy_existence/set_room {{id:$(e{k}),roomId:"stage6_demo_$(a)_{k}"}}']
+        configure += [f'$data modify {R} hit set from {D} regions[{{id:$(e{k})}}]',
+                      "function space_editor:pair/mark_existence"]
     configure += ['$function space_editor:projection/debug/map {target:$(b),region:$(db)}',
                   '$function space_editor:projection/debug/map {target:$(c),region:$(dc)}']
     fn("demo/configure", configure)

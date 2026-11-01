@@ -38,6 +38,8 @@ TOOL_MODELS = {
     "teleport_one_way": "minecraft:block/light_blue_concrete",
     "space_link": "minecraft:block/emerald_block",
     "proxy_existence": "minecraft:block/yellow_concrete",
+    "search_area": "minecraft:block/blue_concrete",
+    "mode_toggle": "minecraft:block/amethyst_block",
 }
 
 
@@ -102,6 +104,8 @@ def _blockstate_bytes(model: str) -> bytes:
         variants = {f"facing={facing}": {"model": target} for facing, target in (
             ("north", model), ("east", "editor:block/frame_teleport"),
             ("south", "editor:block/frame_space_link"), ("west", "editor:block/frame_proxy_existence"))}
+    if model == "editor:block/guide":
+        variants = {f"facing={facing}": {"model": "editor:block/frame_search_area" if facing == "east" else model} for facing in ("north", "east", "south", "west")}
     return (json.dumps({"variants": variants}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
@@ -212,6 +216,13 @@ def _tool_model(name: str, accent: str) -> dict:
         for x, y, z in ((2, 9, 6), (7, 11, 8)):
             elements += [_tool_box([x,y,z], [x+2,y+5,z+2]), _tool_box([x+4,y,z], [x+6,y+5,z+2]),
                          _tool_box([x+2,y,z], [x+4,y+1,z+2]), _tool_box([x+2,y+4,z], [x+4,y+5,z+2])]
+    elif name == "search_area":
+        elements += [_tool_box([3,9,7],[5,16,9]), _tool_box([11,9,7],[13,16,9]),
+                     _tool_box([5,14,7],[11,16,9]), _tool_box([5,9,7],[11,11,9]),
+                     _tool_box([7,11,6],[9,14,10], "#detail")]
+    elif name == "mode_toggle":
+        elements += [_tool_box([3,10,6],[13,15,10]), _tool_box([4,11,5],[7,14,6], "#detail"),
+                     _tool_box([9,11,10],[12,14,11], "#detail")]
     elif name == "proxy_existence":
         for x in (3, 11):
             for z in (3, 11):
@@ -235,7 +246,7 @@ def _tool_model(name: str, accent: str) -> dict:
 
 def build_tool_resources() -> None:
     # Code-native wireframes use the exact same vanilla textures as the wands.
-    for kind in ("teleport", "space_link", "proxy_existence"):
+    for kind in ("teleport", "space_link", "proxy_existence", "search_area"):
         edges = []
         for axis in range(3):
             others = [i for i in range(3) if i != axis]
@@ -383,7 +394,7 @@ def sync_live_resources() -> None:
     files += [RP / "assets/editor/models/block/selection_candidate.json"]
     files += [RP / f"assets/editor/models/item/tool_{name}.json" for name in TOOL_MODELS]
     files += [RP / f"assets/editor/items/tool_{name}.json" for name in TOOL_MODELS]
-    files += [RP / f"assets/editor/models/block/frame_{kind}.json" for kind in ("teleport", "space_link", "proxy_existence")]
+    files += [RP / f"assets/editor/models/block/frame_{kind}.json" for kind in ("teleport", "space_link", "proxy_existence", "search_area")]
     files += [RP / f"assets/editor/{folder}/direction_{name}.json"
               for folder in ("models/item", "items") for name in ("front", "up")]
     for name in ("selection", "guide"):

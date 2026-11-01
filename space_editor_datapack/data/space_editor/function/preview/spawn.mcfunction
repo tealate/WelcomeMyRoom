@@ -5,4 +5,5 @@ $execute in $(dimension) positioned $(cx) $(cy) $(cz) run summon minecraft:text_
 $execute in $(dimension) run scoreboard players set @e[tag=space_editor.new] se.id $(id)
 $execute in $(dimension) run tag @e[tag=space_editor.new] remove space_editor.new
 execute if data storage space_editor:runtime renderRegion{kind:"proxy_existence"} run function space_editor:pair/preview_existence with storage space_editor:runtime renderRegion
+execute if data storage space_editor:runtime renderRegion{kind:"search_area"} run function space_editor:search/preview with storage space_editor:runtime renderRegion
 $function space_editor:preview/type_color {id:$(id),dimension:"$(dimension)"}
