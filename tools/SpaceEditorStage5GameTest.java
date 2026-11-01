@@ -706,7 +706,7 @@ public class SpaceEditorStage5GameTest {
         measured("execute positioned 0.5 81.5 -1 rotated 0 0 run function space_editor:input/move");
         near(runtime().getCompoundOrEmpty("pastePending").getDoubleOr("z",999),-1,"Paste move priority preserved");
         check(regions().equals(saved),"Paste movement does not edit Region");cmd("data remove storage space_editor:runtime pastePending");
-        var config=com.google.gson.JsonParser.parseString(Files.readString(Path.of("space_editor_blocks.json"))).getAsJsonObject();
+        var config=com.google.gson.JsonParser.parseString(Files.readString(Path.of("space_editor_config.json"))).getAsJsonObject();
         String fence=config.getAsJsonObject("collisionCarriers").get("fence").getAsString();
         cmd("setblock 0 83 0 "+fence);
         measured("execute positioned 0.5 81.5 -1 rotated 0 0 run function space_editor:input/delete");

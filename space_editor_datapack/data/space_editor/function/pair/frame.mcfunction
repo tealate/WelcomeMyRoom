@@ -1,4 +1,8 @@
 scoreboard players set #frame_ok se.v 1
+scoreboard players set #frame_max se.v 128000
+execute if data storage space_editor:runtime frame{kind:"space_link"} run scoreboard players set #frame_max se.v 128000
+execute if data storage space_editor:runtime frame{kind:"proxy_existence"} run scoreboard players set #frame_max se.v 128000
+execute if data storage space_editor:runtime frame{kind:"search_area"} run scoreboard players set #frame_max se.v 1024000
 execute unless data storage space_editor:runtime frame.rotationY run data modify storage space_editor:runtime frame.rotationY set value 0
 execute unless data storage space_editor:runtime frame.flipY run data modify storage space_editor:runtime frame.flipY set value 0b
 data modify storage space_editor:runtime frame.localSize set value [I;0,0,0]
@@ -8,7 +12,8 @@ execute store result score #fx1 se.v run data get storage space_editor:runtime f
 execute store result score #fx2 se.v run data get storage space_editor:runtime frame.x2m 1
 scoreboard players operation #fsx se.v = #fx2 se.v
 scoreboard players operation #fsx se.v -= #fx1 se.v
-execute unless score #fsx se.v matches 100..32000 run scoreboard players set #frame_ok se.v 0
+execute unless score #fsx se.v matches 100.. run scoreboard players set #frame_ok se.v 0
+execute if score #fsx se.v > #frame_max se.v run scoreboard players set #frame_ok se.v 0
 execute unless score #fx1 se.v matches -500000000..500000000 run scoreboard players set #frame_ok se.v 0
 execute unless score #fx2 se.v matches -500000000..500000000 run scoreboard players set #frame_ok se.v 0
 execute store result storage space_editor:runtime frame.x1 double 0.001 run scoreboard players get #fx1 se.v
@@ -24,7 +29,8 @@ execute store result score #fy1 se.v run data get storage space_editor:runtime f
 execute store result score #fy2 se.v run data get storage space_editor:runtime frame.y2m 1
 scoreboard players operation #fsy se.v = #fy2 se.v
 scoreboard players operation #fsy se.v -= #fy1 se.v
-execute unless score #fsy se.v matches 100..32000 run scoreboard players set #frame_ok se.v 0
+execute unless score #fsy se.v matches 100.. run scoreboard players set #frame_ok se.v 0
+execute if score #fsy se.v > #frame_max se.v run scoreboard players set #frame_ok se.v 0
 execute unless score #fy1 se.v matches -500000000..500000000 run scoreboard players set #frame_ok se.v 0
 execute unless score #fy2 se.v matches -500000000..500000000 run scoreboard players set #frame_ok se.v 0
 execute store result storage space_editor:runtime frame.y1 double 0.001 run scoreboard players get #fy1 se.v
@@ -40,7 +46,8 @@ execute store result score #fz1 se.v run data get storage space_editor:runtime f
 execute store result score #fz2 se.v run data get storage space_editor:runtime frame.z2m 1
 scoreboard players operation #fsz se.v = #fz2 se.v
 scoreboard players operation #fsz se.v -= #fz1 se.v
-execute unless score #fsz se.v matches 100..32000 run scoreboard players set #frame_ok se.v 0
+execute unless score #fsz se.v matches 100.. run scoreboard players set #frame_ok se.v 0
+execute if score #fsz se.v > #frame_max se.v run scoreboard players set #frame_ok se.v 0
 execute unless score #fz1 se.v matches -500000000..500000000 run scoreboard players set #frame_ok se.v 0
 execute unless score #fz2 se.v matches -500000000..500000000 run scoreboard players set #frame_ok se.v 0
 execute store result storage space_editor:runtime frame.z1 double 0.001 run scoreboard players get #fz1 se.v

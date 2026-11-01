@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG_PATH = ROOT / "space_editor_blocks.json"
+CONFIG_PATH = ROOT / "space_editor_config.json"
 PROPERTY_REPORT = ROOT / "build/test-server/block-properties-26.1.tsv"
 
 RESOURCE_ID = re.compile(r"^[a-z0-9_.-]+:[a-z0-9_./-]+$")
@@ -75,7 +75,9 @@ def _registry_properties() -> dict[str, set[str]]:
 
 def validate_editor_block_config(raw: object, *, registry_ids: set[str] | None = None,
                                  check_textures: bool = True) -> dict:
-    data = _expect_keys(raw, {"schemaVersion", "displayBlocks", "collisionCarriers", "maskablePalettes"}, "root")
+    data = _expect_keys(raw, {"schemaVersion", "displayBlocks", "collisionCarriers", "maskablePalettes",
+                              "maxRegionSizeBlocks", "searchBudgetPerTick", "searchBudgetWhenCrowded",
+                              "modeSwitchGapTicks", "inputCooldownTicks"}, "root")
     if data["schemaVersion"] != 1:
         raise EditorBlockConfigError("schemaVersion must be 1")
 
@@ -136,10 +138,23 @@ def validate_editor_block_config(raw: object, *, registry_ids: set[str] | None =
         if missing_textures:
             raise EditorBlockConfigError("source textures not found: " + "; ".join(missing_textures))
 
-    return {"schemaVersion": 1, "displayBlocks": displays, "collisionCarriers": collisions, "maskablePalettes": palettes}
+    sizes = _expect_keys(data["maxRegionSizeBlocks"], {"normal", "spaceLink", "proxyExistence", "searchArea"}, "maxRegionSizeBlocks")
+    for name, value in sizes.items():
+        # Region coordinates use signed 32-bit milliblocks. Keep enough room
+        # for the doubled coordinates used by mapping and previews.
+        if type(value) is not int or not 1 <= value <= 100000:
+            raise EditorBlockConfigError(f"maxRegionSizeBlocks.{name} must be an integer from 1 to 100000")
+    for name in ("searchBudgetPerTick", "searchBudgetWhenCrowded", "modeSwitchGapTicks", "inputCooldownTicks"):
+        value = data[name]
+        if type(value) is not int or not 1 <= value <= 100000:
+            raise EditorBlockConfigError(f"{name} must be an integer from 1 to 100000")
+    return {"schemaVersion": 1, "displayBlocks": displays, "collisionCarriers": collisions,
+            "maskablePalettes": palettes, "maxRegionSizeBlocks": sizes,
+            **{name: data[name] for name in ("searchBudgetPerTick", "searchBudgetWhenCrowded",
+                                               "modeSwitchGapTicks", "inputCooldownTicks")}}
 
 
-def load_editor_block_config(path: Path = CONFIG_PATH, *, check_textures: bool = True) -> dict:
+def load_editor_config(path: Path = CONFIG_PATH, *, check_textures: bool = True) -> dict:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -147,3 +162,8 @@ def load_editor_block_config(path: Path = CONFIG_PATH, *, check_textures: bool =
     except json.JSONDecodeError as exc:
         raise EditorBlockConfigError(f"invalid JSON in {path}: line {exc.lineno}, column {exc.colno}: {exc.msg}") from exc
     return validate_editor_block_config(raw, check_textures=check_textures)
+
+
+def load_editor_block_config(path: Path = CONFIG_PATH, *, check_textures: bool = True) -> dict:
+    """Compatibility entry point for existing asset generators."""
+    return load_editor_config(path, check_textures=check_textures)

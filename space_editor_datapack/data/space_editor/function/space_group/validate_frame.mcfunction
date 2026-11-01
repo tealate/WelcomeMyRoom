@@ -6,6 +6,7 @@ execute unless data storage space_editor:runtime frame.y2m run return run scoreb
 execute unless data storage space_editor:runtime frame.z1m run return run scoreboard players set #sg_ok se.v 0
 execute unless data storage space_editor:runtime frame.z2m run return run scoreboard players set #sg_ok se.v 0
 execute unless data storage space_editor:runtime frame{dimension:"minecraft:overworld"} unless data storage space_editor:runtime frame{dimension:"minecraft:the_nether"} unless data storage space_editor:runtime frame{dimension:"minecraft:the_end"} run return run scoreboard players set #sg_ok se.v 0
+data modify storage space_editor:runtime frame.kind set value "space_link"
 function space_editor:pair/frame
 execute unless score #frame_ok se.v matches 1 run scoreboard players set #sg_ok se.v 0
 execute unless data storage space_editor:runtime frame{rotationY:0} unless data storage space_editor:runtime frame{rotationY:90} unless data storage space_editor:runtime frame{rotationY:180} unless data storage space_editor:runtime frame{rotationY:270} run scoreboard players set #sg_ok se.v 0

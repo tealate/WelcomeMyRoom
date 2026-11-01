@@ -158,6 +158,7 @@ def persistence():
         *[f'execute unless data {R} frame.{a}{e}m run return run scoreboard players set #sg_ok se.v 0' for a in 'xyz' for e in (1, 2)],
         # Custom dimensions need explicit build heights; fail closed, never assume Nether bounds.
         f'execute unless data {R} frame{{dimension:"minecraft:overworld"}} unless data {R} frame{{dimension:"minecraft:the_nether"}} unless data {R} frame{{dimension:"minecraft:the_end"}} run return run scoreboard players set #sg_ok se.v 0',
+        f'data modify {R} frame.kind set value "space_link"',
         'function space_editor:pair/frame',
         'execute unless score #frame_ok se.v matches 1 run scoreboard players set #sg_ok se.v 0',
         f'execute unless data {R} frame{{rotationY:0}} unless data {R} frame{{rotationY:90}} unless data {R} frame{{rotationY:180}} unless data {R} frame{{rotationY:270}} run scoreboard players set #sg_ok se.v 0',

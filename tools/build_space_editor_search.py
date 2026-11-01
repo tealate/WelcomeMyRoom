@@ -19,7 +19,7 @@ def generate(g):
         f'execute if data {D} regions store success score #changed pr.v run data modify {S} snapshot set from {D} regions',
         f'execute unless data {D} regions store success score #changed pr.v run data modify {S} snapshot set value []',
         'execute if score #changed pr.v matches 1 run function space_editor:search/invalidate',
-        'scoreboard players set #search_budget pr.v 64',
+        f'scoreboard players set #search_budget pr.v {g.stage4.stage3.stage2.stage1.BLOCK_CONFIG["searchBudgetPerTick"]}',
         *[f'execute if data {S} buildAreas[0] run function space_editor:search/build_step'] * 8,
     ])
     fn('invalidate', [

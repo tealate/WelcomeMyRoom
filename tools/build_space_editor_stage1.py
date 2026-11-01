@@ -13,6 +13,8 @@ F = DP / "data/space_editor/function"
 try:
     BLOCK_CONFIG = load_editor_block_config()
     DISPLAY_BLOCKS = BLOCK_CONFIG["displayBlocks"]
+    REGION_MAX = BLOCK_CONFIG["maxRegionSizeBlocks"]["normal"]
+    INPUT_CD = BLOCK_CONFIG["inputCooldownTicks"]
 except EditorBlockConfigError as error:
     raise SystemExit(f"Error: {error}") from None
 
@@ -154,7 +156,7 @@ def main() -> None:
         "tag @s add space_editor.editing",
         "data modify storage space_editor:document editMode set value 1b",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}},minecraft:item_model=\"editor:tool_region\"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}}]",
-        "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"region\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"region\"}},minecraft:item_model=\"editor:tool_region\",minecraft:custom_name={text:\"範囲選択棒\",color:\"aqua\",italic:false},minecraft:lore=[{text:\"右クリック1回目=A / 2回目=B\",italic:false}] ]",
+        f"execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:\"region\"}}}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={{space_editor:{{tool:\"region\"}}}},minecraft:item_model=\"editor:tool_region\",minecraft:custom_name={{text:\"範囲選択棒\",color:\"aqua\",italic:false}},minecraft:lore=[{{text:\"右クリック1回目=A / 2回目=B\",italic:false}},{{text:\"各辺最大{REGION_MAX}ブロック\",italic:false}}] ]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_all\"}},minecraft:item_model=\"editor:tool_resize_all\"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_all\"}}]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_all\"}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={space_editor:{tool:\"resize_all\"}},minecraft:item_model=\"editor:tool_resize_all\",minecraft:custom_name={text:\"全体サイズ変更棒\",color:\"yellow\",italic:false},minecraft:lore=[{text:\"右クリック=拡大 / Shift+右クリック=縮小\",italic:false}] ]",
         "execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_face\"}},minecraft:item_model=\"editor:tool_resize_face\"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{space_editor:{tool:\"resize_face\"}}]",
@@ -232,7 +234,7 @@ def main() -> None:
 
     # Selection input: first click stores A; second click stores B and commits.
     fn("input/region", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {INPUT_CD}",
         "execute unless data storage space_editor:runtime hover.pos run return run " + message("選択予定位置を取得できません。", "red"),
         "function space_editor:selection/capture",
     ])
@@ -276,10 +278,10 @@ def main() -> None:
             f"scoreboard players add #max{axis} se.v 1",
             f"scoreboard players operation #size{axis} se.v = #max{axis} se.v",
             f"scoreboard players operation #size{axis} se.v -= #min{axis} se.v",
-            f"execute unless score #size{axis} se.v matches 1..32 run scoreboard players set #valid se.v 0",
+            f"execute unless score #size{axis} se.v matches 1..{REGION_MAX} run scoreboard players set #valid se.v 0",
         ]
     create += [
-        "execute unless score #valid se.v matches 1 run return run " + message("各辺は1〜32ブロックにしてください。", "red"),
+        "execute unless score #valid se.v matches 1 run return run " + message(f"各辺は1〜{REGION_MAX}ブロックにしてください。", "red"),
         "execute store result score #next se.v run data get storage space_editor:document nextId 1",
         'data modify storage space_editor:runtime region set value {id:0,idText:"",dimension:"",min:[I;0,0,0],maxExclusive:[I;0,0,0],role:"generic",state:"committed",visible:1b}',
         "execute store result storage space_editor:runtime region.id int 1 run scoreboard players get #next se.v",
@@ -331,7 +333,7 @@ def main() -> None:
         "execute if data storage space_editor:runtime renderQueue[0] run function space_editor:preview/next",
     ])
     fn("input/region_visibility", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {INPUT_CD}",
         "execute if data storage space_editor:document settings{regionsVisible:1b} run return run function space_editor:region/display/hide",
         "function space_editor:region/display/show",
     ])
@@ -391,14 +393,14 @@ def main() -> None:
     # the deterministic tie breaker for equal hit distances.
     for tool in ("resize_all", "resize_face", "move"):
         fn(f"input/{tool}", [
-            "scoreboard players set @s se.cd 5",
+            f"scoreboard players set @s se.cd {INPUT_CD}",
             f'data modify storage space_editor:runtime activeTool set value "{tool}"',
             "data remove storage space_editor:runtime hit",
             "scoreboard players set #region_ray se.v 0",
             "execute anchored eyes positioned ^ ^ ^ run function space_editor:region/ray",
         ])
     fn("input/delete", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {INPUT_CD}",
         'data modify storage space_editor:runtime activeTool set value "delete"',
         "data remove storage space_editor:runtime hit",
         "scoreboard players set #region_ray se.v 0",
@@ -473,7 +475,7 @@ def main() -> None:
             f"scoreboard players operation #{axis}2 se.v += #delta se.v",
             f"scoreboard players operation #size{axis} se.v = #{axis}2 se.v",
             f"scoreboard players operation #size{axis} se.v -= #{axis}1 se.v",
-            f"execute unless score #size{axis} se.v matches 100..32000 run return run " + message("変更後の各辺は0.1〜32ブロックである必要があります。", "red"),
+            f"execute unless score #size{axis} se.v matches 100..{REGION_MAX * 1000} run return run " + message(f"変更後の各辺は0.1〜{REGION_MAX}ブロックである必要があります。", "red"),
         )],
         "function space_editor:region/save_resize",
     ])
@@ -485,7 +487,7 @@ def main() -> None:
         face_lines += [
             f"scoreboard players operation #size{axis} se.v = #{axis}2 se.v",
             f"scoreboard players operation #size{axis} se.v -= #{axis}1 se.v",
-            f"execute unless score #size{axis} se.v matches 100..32000 run return run " + message("変更後の各辺は0.1〜32ブロックである必要があります。", "red"),
+            f"execute unless score #size{axis} se.v matches 100..{REGION_MAX * 1000} run return run " + message(f"変更後の各辺は0.1〜{REGION_MAX}ブロックである必要があります。", "red"),
         ]
     face_lines += ["function space_editor:region/save_resize"]
     fn("region/resize_face", face_lines)

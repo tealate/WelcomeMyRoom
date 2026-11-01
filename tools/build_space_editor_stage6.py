@@ -5,12 +5,14 @@ configuration lives in document.projection; active paths live in projection stor
 """
 from pathlib import Path
 import json
+from editor_block_config import load_editor_config
 
 ROOT = Path(__file__).resolve().parents[1]
 P = "storage space_editor:projection"
 R = "storage space_editor:runtime"
 D = "storage space_editor:document"
 DIMS = ("overworld", "the_nether", "the_end")
+CONFIG = load_editor_config()
 
 
 def generate(stage5):
@@ -128,7 +130,7 @@ def contacts():
         "scoreboard players set #updates pr.v 24",
         f"execute store result score #contacts pr.v run data get {P} contacts",
         "execute if score #contacts pr.v matches 64.. run scoreboard players set #updates pr.v 8",
-        "execute if score #contacts pr.v matches 64.. run scoreboard players set #search_budget pr.v 48",
+        f"execute if score #contacts pr.v matches 64.. run scoreboard players set #search_budget pr.v {CONFIG['searchBudgetWhenCrowded']}",
         "execute if score #contacts pr.v matches 64.. if entity @a[scores={pr.debug=1}] run scoreboard players set #updates pr.v 4",
         "function space_editor:projection/contact_scan",
         f"data modify {P} actorQueue set from {P} players", "function space_editor:projection/finish_players",

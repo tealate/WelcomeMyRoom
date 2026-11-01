@@ -65,7 +65,7 @@ def main() -> None:
 
     # Mask creation uses the existing Region ray/AABB selection flow.
     fn("input/mask", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {stage3.stage2.stage1.INPUT_CD}",
         'data modify storage space_editor:runtime activeTool set value "mask_create"',
         "data remove storage space_editor:runtime hit",
         "scoreboard players set #region_ray se.v 0",

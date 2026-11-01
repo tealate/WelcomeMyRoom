@@ -225,7 +225,7 @@ def main() -> None:
     # Shift-click controls the transform and never confirms/cancels a paste.
     # A normal click keeps the phase-2 two-click preview/confirm workflow.
     fn("input/paste", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {stage2.stage1.INPUT_CD}",
         'execute if predicate {condition:"minecraft:entity_properties",entity:"this",predicate:{flags:{is_sneaking:true}}} run return run function space_editor:paste_mode/apply',
         "execute if data storage space_editor:runtime pastePending run return run function space_editor:paste/confirm",
         "execute if data storage space_editor:document job{state:\"running\"} run return run " + message("別のCopy/Paste Jobが実行中です。", "red"),

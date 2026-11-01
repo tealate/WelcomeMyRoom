@@ -48,6 +48,31 @@ Stage05生成の末尾で06-1と正式Stage06も生成します。最新の全�
 python tools/build_space_editor_stage6.py
 ```
 
+### 設定値の変更
+
+設定の正本はルートの [`space_editor_config.json`](space_editor_config.json) です。旧
+`space_editor_blocks.json` のブロック割り当てもここへ統合しました。JSON を編集して上記の
+コマンドを再実行すると、データパックの判定・エラー文・棒の説明文とリソースパックの
+ブロック割り当てがまとめて更新されます。Python や mcfunction の直接編集は不要です。
+
+| 項目 | 初期値 | 内容 |
+| --- | ---: | --- |
+| `maxRegionSizeBlocks.normal` | 32 | 通常 Region の各辺の最大ブロック数 |
+| `maxRegionSizeBlocks.spaceLink` | 32 | SpaceLink の各辺の最大ブロック数 |
+| `maxRegionSizeBlocks.proxyExistence` | 32 | Proxy 存在範囲の各辺の最大ブロック数 |
+| `maxRegionSizeBlocks.searchArea` | 512 | 検索エリアの各辺の最大ブロック数 |
+| `searchBudgetPerTick` | 64 | 1 tick の検索予算 |
+| `searchBudgetWhenCrowded` | 48 | 接触候補が64件以上のときの検索予算 |
+| `modeSwitchGapTicks` | 8 | モード切替棒の再入力までの間隔（tick） |
+| `inputCooldownTicks` | 5 | 編集棒を使った後の入力待機時間（tick） |
+
+`displayBlocks`、`collisionCarriers`、`maskablePalettes` は描画・衝突代理ブロックと
+Mask 素材の割り当てです。サイズはブロック単位の整数で指定します。内部の 1/1000
+ブロック単位への変換は生成器が行います。JSON のキーを削除したり、範囲外の値を指定したり
+するとビルド時にエラーになります。生成後、データパックは `/reload`、リソースパックは
+`F3+T` で読み直してください。すでに持っている棒の説明文は、古い棒を取り除いてから
+`/function space_editor:start` で受け取り直すと更新されます。
+
 各段階を単独で生成する入口も残しています。
 
 - 01 Region: `tools/build_space_editor_stage1.py`
@@ -102,7 +127,7 @@ Paste の4方向回転、FlipY、block state 変換、特殊な fence/wall 表�
 
 Mask 対象素材は `/function space_editor:mask/give_target_stone` などで受け取り、Fill 棒の
 オフハンドに持って使います。`stone`、`dirt`、`oak`、`bricks`、`quartz` を用意しています。
-論理素材名と代理ブロックは `space_editor_blocks.json` で管理します。
+論理素材名と代理ブロックは `space_editor_config.json` で管理します。
 
 Mask 本体の初期割り当ては `waxed_oxidized_cut_copper` です。専用テクスチャを使うため、通常は
 ほぼ不可視の translucent Display になります。割り当ては `displayBlocks.maskBody` で変更できます。
@@ -164,7 +189,7 @@ Room／Groupの関連付けと片方向指定は補助APIで設定できます�
 
 `direction`は`both`または`one_way`（A→B）。Groupを共有するTPとSpaceLinkの変換・包含関係が
 一致しなければ警告し、相手ペアの位置は変更しません。Group未指定のペアは独立して使えます。
-ペアRegionの各辺は0.1〜32ブロック、座標は各軸±500,000ブロック以内です。
+ペアRegionの各辺の初期上限は32ブロック、座標は各軸±500,000ブロック以内です。
 追加APIと06への接続契約は[paired-regions.md](docs/paired-regions.md)を参照してください。
 
 ## 主な操作
@@ -192,7 +217,7 @@ Stage 01 の生成時に `tools/build_space_editor_resources.py` が共有描画
 - `mask_body.png` の正本: ルート `assets/editor/textures/block/mask_body.png`
 
 `assets/editor/` という resource namespace は現行 block display が使用しています。旧 function
-namespace ではないため削除しません。blockstate の割り当ては `space_editor_blocks.json`、
+namespace ではないため削除しません。blockstate の割り当ては `space_editor_config.json`、
 安全な上書き／復元情報は `space_editor_generated_manifest.json` で管理します。
 
 選択カーソルの手編集元は

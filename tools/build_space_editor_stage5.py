@@ -13,6 +13,8 @@ message = stage4.message
 dimensions = stage4.dimensions
 R = "storage space_editor:runtime"
 D = "storage space_editor:document"
+SIZES = stage4.stage3.stage2.stage1.BLOCK_CONFIG["maxRegionSizeBlocks"]
+INPUT_CD = stage4.stage3.stage2.stage1.INPUT_CD
 
 
 def fn(name: str, lines: list[str]) -> None:
@@ -119,6 +121,10 @@ def generate_transform() -> None:
 def generate_frames() -> None:
     # Scratch frame is normalized in one place, retaining all unknown fields.
     normalize = ["scoreboard players set #frame_ok se.v 1",
+                 f"scoreboard players set #frame_max se.v {SIZES['normal'] * 1000}",
+                 f'execute if data {R} frame{{kind:"space_link"}} run scoreboard players set #frame_max se.v {SIZES["spaceLink"] * 1000}',
+                 f'execute if data {R} frame{{kind:"proxy_existence"}} run scoreboard players set #frame_max se.v {SIZES["proxyExistence"] * 1000}',
+                 f'execute if data {R} frame{{kind:"search_area"}} run scoreboard players set #frame_max se.v {SIZES["searchArea"] * 1000}',
                  f"execute unless data {R} frame.rotationY run data modify {R} frame.rotationY set value 0",
                  f"execute unless data {R} frame.flipY run data modify {R} frame.flipY set value 0b",
                  f"data modify {R} frame.localSize set value [I;0,0,0]",
@@ -129,7 +135,8 @@ def generate_frames() -> None:
                       f"execute store result score #f{axis}2 se.v run data get {R} frame.{axis}2m 1",
                       f"scoreboard players operation #fs{axis} se.v = #f{axis}2 se.v",
                       f"scoreboard players operation #fs{axis} se.v -= #f{axis}1 se.v",
-                      f"execute unless score #fs{axis} se.v matches 100..32000 run scoreboard players set #frame_ok se.v 0",
+                      f"execute unless score #fs{axis} se.v matches 100.. run scoreboard players set #frame_ok se.v 0",
+                      f"execute if score #fs{axis} se.v > #frame_max se.v run scoreboard players set #frame_ok se.v 0",
                       # Keep doubled point arithmetic within signed scoreboard range.
                       f"execute unless score #f{axis}1 se.v matches -500000000..500000000 run scoreboard players set #frame_ok se.v 0",
                       f"execute unless score #f{axis}2 se.v matches -500000000..500000000 run scoreboard players set #frame_ok se.v 0",
@@ -204,11 +211,13 @@ def generate_pairs() -> None:
         f'$data modify {R} pair set value {{id:0,a:$(source),b:0,kind:"$(kind)",localSize:[I;0,0,0],groupId:0,roomA:"",roomB:"",direction:"both",cooldownTicks:20}}',
         f'execute unless data {R} pair{{kind:"teleport"}} unless data {R} pair{{kind:"space_link"}} run return 0',
         f'$execute if data {R} pairPending{{source:$(source),kind:"teleport",direction:"one_way"}} run data modify {R} pair.direction set value "one_way"',
-        f"data modify {R} frame set from {R} editA", "function space_editor:pair/frame",
+        f"data modify {R} frame set from {R} editA",
+        f"data modify {R} frame.kind set from {R} pair.kind", "function space_editor:pair/frame",
         "execute unless score #frame_ok se.v matches 1 run return 0",
         f"data modify {R} editA set from {R} frame",
         f"data modify {R} pair.localSize set from {R} frame.localSize",
-        f"data modify {R} frame set from {R} pairCandidate", "function space_editor:pair/frame",
+        f"data modify {R} frame set from {R} pairCandidate",
+        f"data modify {R} frame.kind set from {R} pair.kind", "function space_editor:pair/frame",
         "execute unless score #frame_ok se.v matches 1 run return run " + message("配置先がRegionの範囲制限を超えています。", "red"),
         "scoreboard players set #different_size se.v 0",
         f"execute store success score #different_size se.v run data modify {R} frame.localSize set from {R} pair.localSize",
@@ -386,7 +395,7 @@ def generate_pair_ui() -> None:
     ):
         append(F / "start.mcfunction", [
             f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}},minecraft:item_model="editor:tool_{tool}"] run clear @s minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}}]',
-            f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={{space_editor:{{tool:"{tool}"}}}},minecraft:item_model="editor:tool_{tool}",minecraft:custom_name={{text:"{name}",color:"{color}",italic:false}},minecraft:lore=[{{text:"右クリック: 対象選択 / 配置確定",italic:false}},{{text:"Shift+右クリック: 基準Yawの左右で回転・上下でFlipY",italic:false}}]]',
+            f'execute unless items entity @s container.* minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}}] run give @s minecraft:carrot_on_a_stick[minecraft:custom_data={{space_editor:{{tool:"{tool}"}}}},minecraft:item_model="editor:tool_{tool}",minecraft:custom_name={{text:"{name}",color:"{color}",italic:false}},minecraft:lore=[{{text:"右クリック: 対象選択 / 配置確定",italic:false}},{{text:"Shift+右クリック: 基準Yawの左右で回転・上下でFlipY",italic:false}},{{text:"各辺最大{SIZES["spaceLink"] if kind == "space_link" else SIZES["proxyExistence"] if kind == "proxy_existence" else SIZES["normal"]}ブロック",italic:false}}]]',
         ])
         insert_before(F / "tick.mcfunction", "scoreboard players set @a[scores={se.use=1..}]", [
             f'execute as @a[tag=space_editor.editing] at @s if items entity @s weapon.mainhand minecraft:carrot_on_a_stick[minecraft:custom_data~{{space_editor:{{tool:"{tool}"}}}}] run function space_editor:pair/held_{tool}',
@@ -422,7 +431,7 @@ def generate_pair_ui() -> None:
     append(F / "play.mcfunction", ["function space_editor:pair/cancel"])
     insert_before(F / "start.mcfunction", "tag @a remove", ["function space_editor:pair/cancel"])
     fn("pair/click", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {INPUT_CD}",
         f'execute if predicate {{condition:"minecraft:entity_properties",entity:"this",predicate:{{flags:{{is_sneaking:true}}}}}} if data {R} pairSession.selected run return run function space_editor:pair/gesture',
         f"execute if data {R} pairPending run return run function space_editor:pair/confirm",
         f'data modify {R} activeTool set value "pair_select"', f"data remove {R} hit",
@@ -459,6 +468,8 @@ def generate_pair_ui() -> None:
     fn("pair/mark_existence", [
         f"execute if data {R} hit.pairId run return 0",
         f'data modify {R} hit.kind set value "proxy_existence"',
+        f'data modify {R} frame set from {R} hit', "function space_editor:pair/frame",
+        "execute unless score #frame_ok se.v matches 1 run return run " + message(f"Proxy存在範囲の各辺は0.1〜{SIZES['proxyExistence']}ブロックにしてください。", "red"),
         f'execute unless data {R} hit.roomId run data modify {R} hit.roomId set value ""',
         f"function space_editor:region/store_hit with {R} hit", "function space_editor:preview/resync",
         message("単独のProxy存在範囲として登録しました。", "green"),

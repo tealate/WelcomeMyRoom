@@ -90,7 +90,7 @@ def main() -> None:
 
     # Copy selects the nearest Region through the phase-1 AABB ray test.
     fn("input/copy", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {stage1.INPUT_CD}",
         'data modify storage space_editor:runtime activeTool set value "copy"',
         "data remove storage space_editor:runtime hit",
         "scoreboard players set #region_ray se.v 0",
@@ -144,7 +144,7 @@ def main() -> None:
         "function space_editor:fill/apply",
     ])
     fn("input/fill", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {stage1.INPUT_CD}",
         'data modify storage space_editor:runtime activeTool set value "fill"',
         "data remove storage space_editor:runtime hit",
         "execute unless data storage space_editor:runtime hover.pos run return run " + message("選択予定位置を取得できません。", "red"),
@@ -284,7 +284,7 @@ def main() -> None:
     # Paste reads a reference-only template item from the offhand and commits
     # the same three-block hover cell used by the Region wand as its origin.
     fn("input/paste", [
-        "scoreboard players set @s se.cd 5",
+        f"scoreboard players set @s se.cd {stage1.INPUT_CD}",
         'execute if data storage space_editor:runtime pastePending if predicate {condition:"minecraft:entity_properties",entity:"this",predicate:{flags:{is_sneaking:true}}} run return run function space_editor:paste/cancel',
         "execute if data storage space_editor:runtime pastePending run return run function space_editor:paste/confirm",
         "execute if data storage space_editor:document job{state:\"running\"} run return run " + message("別のCopy/Paste Jobが実行中です。", "red"),
